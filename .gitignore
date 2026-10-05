@@ -1,0 +1,56 @@
+# Secrets
+config/.env
+.env
+*.env
+credentials*.json
+token.json
+*.pem
+*.key
+
+# Dependencies
+node_modules/
+backend/node_modules/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Airflow runtime
+airflow/logs/
+airflow/airflow.db
+airflow/*.pid
+
+# Music / media
+*.mp3
+*.m4a
+*.flac
+*.wav
+*.aac
+*.mp4
+*.mkv
+
+# Database backups
+*.sql
+*.dump
+*.backup
+
+# Temporary files
+tmp/
+temp/
+*.log
+
+# Old development backups
+*.before-*
+*.backup-*
+*.backup.html
+*.stable-working.html
+*.working-*.html
+*.save
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

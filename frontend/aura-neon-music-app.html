@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AuraSound Music</title>
+<style>
+:root{
+  --bg:#060817;--panel:rgba(18,19,39,.72);--panel2:rgba(28,21,48,.78);
+  --line:rgba(255,255,255,.11);--text:#f7f4ff;--muted:#9794aa;
+  --purple:#9b4dff;--cyan:#19d7ff;--pink:#ff3f9e;--green:#20df78;
+}
+*{box-sizing:border-box} body{margin:0;background:#020512;color:var(--text);font:14px Inter,system-ui,sans-serif;min-height:100vh}
+body:before{content:"";position:fixed;inset:-20%;background:radial-gradient(circle at 25% 10%,#6824a855,transparent 28%),radial-gradient(circle at 85% 12%,#00bcd433,transparent 25%),radial-gradient(circle at 50% 100%,#b51a7a22,transparent 30%);filter:blur(35px);pointer-events:none}
+button,input{font:inherit} button{color:inherit;border:0;cursor:pointer}
+.app{position:relative;z-index:1;display:grid;grid-template-columns:220px 1fr;min-height:100vh;max-width:1500px;margin:auto}
+.sidebar{padding:24px 16px;border-right:1px solid var(--line);background:rgba(4,6,18,.72);backdrop-filter:blur(25px)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:900;font-size:18px;margin:0 8px 30px}
+.logo{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;background:linear-gradient(135deg,var(--purple),var(--cyan));box-shadow:0 0 24px #8d40ff66}
+.nav{display:grid;gap:7px}.nav button{display:flex;align-items:center;gap:12px;padding:12px;border-radius:14px;background:transparent;color:var(--muted);text-align:left}.nav button.active,.nav button:hover{background:#8d40ff25;color:white;border:1px solid #9b4dff55}.side-title{font-size:10px;text-transform:uppercase;color:#66647a;letter-spacing:1.5px;margin:28px 8px 8px}
+.main{min-width:0;padding-bottom:90px}.top{height:70px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;border-bottom:1px solid var(--line);background:#05071699;backdrop-filter:blur(25px);position:sticky;top:0;z-index:10}
+.search{width:min(420px,45vw);background:#fff8;border:1px solid var(--line);border-radius:14px;padding:10px 14px;color:white;outline:0}.search:focus{border-color:#9b4dff88;box-shadow:0 0 20px #8d40ff22}
+.top-actions{display:flex;gap:8px}.pill{padding:9px 13px;border-radius:999px;background:#ffffff08;border:1px solid var(--line);color:var(--muted)}.pill.active{background:#8d40ff30;border-color:#9b4dff88;color:white}
+.content{padding:28px;max-width:1250px;margin:auto}.screen{display:none}.screen.active{display:block}
+.hero{display:grid;grid-template-columns:minmax(280px,380px) 1fr;gap:32px;align-items:center;padding:30px;border:1px solid var(--line);border-radius:28px;background:linear-gradient(135deg,#8d40ff16,#07182a77);box-shadow:0 20px 80px #0008}
+.cover{aspect-ratio:1;border-radius:24px;overflow:hidden;background:linear-gradient(135deg,#8d40ff,#18d8ff);box-shadow:0 0 55px #8d40ff44}.cover img{width:100%;height:100%;object-fit:cover}.cover-placeholder{width:100%;height:100%;display:grid;place-items:center;font-size:70px}
+.eyebrow{color:#aeb2cc;font-size:11px;letter-spacing:1.5px;text-transform:uppercase}.title{font-size:clamp(34px,5vw,64px);line-height:.98;margin:10px 0}.artist{font-size:18px;color:#bdb9cc}.meta{color:var(--muted);margin-top:7px}
+.wave{height:90px;display:flex;align-items:center;gap:3px;margin:28px 0}.bar{flex:1;min-width:2px;border-radius:5px;background:linear-gradient(#16dfff,#a64dff,#ff3d9d);box-shadow:0 0 8px #9b4dff55}
+.range{width:100%;accent-color:#a34dff}.times{display:flex;justify-content:space-between;color:var(--muted);font-size:11px;margin-top:5px}
+.controls{display:flex;align-items:center;justify-content:center;gap:18px;margin:24px 0}.control{width:46px;height:46px;border-radius:50%;background:#ffffff0a;border:1px solid var(--line)}.play{width:68px;height:68px;background:linear-gradient(135deg,#a14cff,#14d9ff);box-shadow:0 0 35px #8d40ff88;font-size:22px}
+.quick{display:grid;grid-template-columns:1fr 1fr;gap:10px}.card{border:1px solid var(--line);background:var(--panel);border-radius:18px;padding:14px;backdrop-filter:blur(20px)}.row{display:flex;align-items:center;justify-content:space-between;gap:12px}.switch{width:45px;height:25px;border-radius:99px;background:#303143;padding:3px}.switch.on{background:#20df78}.switch i{display:block;width:19px;height:19px;background:white;border-radius:50%;transition:.2s}.switch.on i{transform:translateX(20px)}
+.section{margin-top:28px}.section h2{font-size:18px;margin:0 0 14px}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px}.album{overflow:hidden}.thumb{aspect-ratio:1;border-radius:15px;background:linear-gradient(135deg,#4d1e8a,#08a9c8);margin-bottom:10px}.thumb img{width:100%;height:100%;object-fit:cover;border-radius:15px}.album b{display:block}.muted{color:var(--muted);font-size:12px}
+.list{display:grid;gap:8px}.song{display:grid;grid-template-columns:52px 1fr auto;align-items:center;gap:13px;padding:10px;border:1px solid transparent;border-radius:15px}.song:hover{background:#ffffff08;border-color:var(--line)}.song .thumb{width:52px;height:52px;margin:0}.song button{background:transparent;color:var(--muted)}
+.dsp{max-width:900px;margin:auto}.dsp-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}.eq{height:220px;background:#070b16;border:1px solid var(--line);border-radius:18px;position:relative;overflow:hidden}.eq-grid{position:absolute;inset:0;background:linear-gradient(#ffffff09 1px,transparent 1px),linear-gradient(90deg,#ffffff09 1px,transparent 1px);background-size:10% 20%}.curve{position:absolute;inset:20px}.eqline{width:100%;height:100%}.knobs{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.knob{text-align:center}.dial{width:70px;height:70px;border:2px solid #16dfff88;border-radius:50%;margin:10px auto;display:grid;place-items:center;background:#090b16;box-shadow:0 0 20px #16dfff22}.dial:after{content:"";width:4px;height:24px;background:#19d7ff;border-radius:4px;transform:rotate(35deg);display:block}.engine{margin-top:12px}.engine .row{padding:14px 0;border-bottom:1px solid var(--line)}.engine .row:last-child{border:0}
+.bottom{display:none}
+@media(max-width:800px){.app{display:block}.sidebar{display:none}.top{padding:0 14px}.search{width:48vw}.content{padding:16px 13px}.hero{grid-template-columns:1fr;padding:20px}.cover{max-width:330px;width:100%;margin:auto}.title{text-align:center}.artist,.meta{text-align:center}.quick,.knobs{grid-template-columns:1fr}.bottom{display:flex;position:fixed;z-index:20;left:8px;right:8px;bottom:8px;height:64px;border:1px solid var(--line);background:#090a16ee;backdrop-filter:blur(25px);border-radius:22px;align-items:center;justify-content:space-around}.bottom button{background:transparent;color:#89869c;font-size:10px;display:grid;place-items:center;gap:3px}.bottom button.active{color:white}.bottom span{font-size:9px}.controls{gap:8px}.control{width:42px;height:42px}.play{width:62px;height:62px}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+  <div class="brand"><div class="logo">♫</div>AuraSound</div>
+  <div class="nav" id="sideNav"></div>
+  <div class="side-title">Library</div>
+  <div class="nav">
+    <button onclick="openScreen('favorites')">♥ Favorites</button>
+    <button onclick="openScreen('playlists')">☷ Playlists</button>
+  </div>
+</aside>
+
+<main class="main">
+<header class="top">
+  <input id="search" class="search" placeholder="Search songs, artists, albums..." oninput="searchAll(this.value)">
+  <div class="top-actions"><button class="pill active" onclick="openScreen('player')">Now Playing</button><button class="pill" onclick="openScreen('dsp')">Audio Settings</button></div>
+</header>
+
+<div class="content">
+<section id="player" class="screen active">
+  <div class="hero">
+    <div class="cover" id="cover"><div class="cover-placeholder">♫</div></div>
+    <div>
+      <div class="eyebrow">Now Playing • Lossless</div>
+      <h1 class="title" id="nowTitle">Choose a song</h1>
+      <div class="artist" id="nowArtist">Your Music Library</div>
+      <div class="meta" id="nowAlbum">Select a track to begin playback.</div>
+      <div class="wave" id="wave"></div>
+      <input id="seek" class="range" type="range" min="0" max="100" value="0" oninput="seek(this.value)">
+      <div class="times"><span id="current">0:00</span><span id="duration">0:00</span></div>
+      <div class="controls">
+        <button class="control" onclick="prev()">⏮</button><button class="control" onclick="toggleShuffle()">🔀</button>
+        <button class="control play" id="play" onclick="togglePlay()">▶</button>
+        <button class="control" onclick="next()">⏭</button><button class="control" onclick="toggleLoop()">🔁</button>
+      </div>
+      <div class="quick">
+        <div class="card row"><span>Smart Crossfade</span><button id="cross" class="switch on" onclick="this.classList.toggle('on')"><i></i></button></div>
+        <div class="card row"><span>Dolby Atmos</span><button id="atmos" class="switch on" onclick="this.classList.toggle('on')"><i></i></button></div>
+      </div>
+    </div>
+  </div>
+  <div class="section"><h2>Recently Added</h2><div id="recent" class="grid"></div></div>
+</section>
+
+<section id="songs" class="screen"><h1>Songs</h1><p class="muted">Your music library</p><div id="songList" class="list"></div></section>
+<section id="albums" class="screen"><h1>Albums</h1><p class="muted">Your collection</p><div id="albumGrid" class="grid"></div></section>
+<section id="artists" class="screen"><h1>Artists</h1><p class="muted">Explore your artists</p><div id="artistList" class="list"></div></section>
+<section id="favorites" class="screen"><h1>Favorites</h1><p class="muted">Your favorite songs</p><div id="favList" class="list"></div></section>
+<section id="playlists" class="screen"><h1>Playlists</h1><p class="muted">Your playlists</p><div id="playlistGrid" class="grid"></div></section>
+
+<section id="dsp" class="screen dsp">
+  <div class="dsp-head"><button class="pill" onclick="openScreen('player')">‹ Player</button><div><b>ADVANCED AUDIO DSP</b><div class="muted">Mastering Controls</div></div><button class="pill" onclick="openScreen('player')">Done</button></div>
+  <div class="card"><div class="row"><b>10-BAND PARAMETRIC EQ</b><span class="muted">Spline Curve</span></div>
+    <div class="eq"><div class="eq-grid"></div><div class="curve"><svg class="eqline" viewBox="0 0 800 180" preserveAspectRatio="none"><path d="M0 125 C90 145 90 55 180 85 S300 125 390 95 S520 30 620 65 S710 90 800 70" fill="none" stroke="url(#g)" stroke-width="5"/><defs><linearGradient id="g"><stop stop-color="#19d7ff"/><stop offset=".5" stop-color="#a34dff"/><stop offset="1" stop-color="#ff3f9e"/></linearGradient></defs></svg></div></div>
+  </div>
+  <div class="card" style="margin-top:12px"><div class="row"><b>STEREO WIDTH</b><span class="muted">+0.88 Phase</span></div><div class="eq" style="height:150px;display:grid;place-items:center;font-size:70px;color:#a34dff">╲│╱</div></div>
+  <div class="knobs" style="margin-top:12px"><div class="card knob"><b>ANALOG TUBE</b><div class="dial"></div><span>6.2 dB</span></div><div class="card knob"><b>TAPE SATURATION</b><div class="dial"></div><span>4.5 Drive</span></div><div class="card knob"><b>ROOM ACOUSTICS</b><div class="dial"></div><span>3.8 Size</span></div></div>
+  <div class="card engine"><b>AUDIOPHILE ENGINE</b><div class="row"><span>Bit-perfect DAC passthrough<br><small class="muted">Direct hardware output</small></span><button class="switch on" onclick="this.classList.toggle('on')"><i></i></button></div><div class="row"><span>ReplayGain (EBU R128)<br><small class="muted">-14 LUFS Standard</small></span><button class="switch on" onclick="this.classList.toggle('on')"><i></i></button></div><div class="row"><span>Linear Phase Upsampling<br><small class="muted">Zero phase distortion</small></span><button class="pill active">MAX</button></div></div>
+</section>
+</div>
+</main>
+</div>
+
+<nav class="bottom" id="bottomNav"></nav>
+<audio id="audio" preload="metadata"></audio>
+
+<script>
+const audio=document.getElementById('audio');
+const state={songs:[],albums:[],artists:[],playlists:[],favorites:JSON.parse(localStorage.getItem('favorites')||'[]'),index:-1,shuffle:false,loop:false};
+const nav=[['player','⌂','Home'],['songs','♫','Songs'],['albums','▦','Albums'],['artists','♙','Artists'],['favorites','♥','Favorites'],['playlists','☷','Playlists']];
+const API=window.MUSIC_API_BASE||'';
+function api(path){return fetch(API+path).then(r=>{if(!r.ok)throw Error(r.status);return r.json()})}
+function openScreen(id){document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));document.getElementById(id)?.classList.add('active');document.querySelectorAll('.nav button,.bottom button').forEach(b=>b.classList.toggle('active',b.dataset.screen===id))}
+function setupNav(){const html=nav.map(([id,icon,name])=>`<button data-screen="${id}" onclick="openScreen('${id}')"><span>${icon}</span>${name}</button>`).join('');document.getElementById('sideNav').innerHTML=html;document.getElementById('bottomNav').innerHTML=html}
+function img(src){return src?`<img src="${src}" alt="">`:''}
+function songId(s){return s.id??s.song_id??s._id}
+function songTitle(s){return s.title??s.name??'Untitled'}
+function artistName(s){return s.artist??s.artist_name??s.artistName??'Unknown Artist'}
+function songUrl(s){return s.url||s.stream_url||s.audio_url||('/music/'+encodeURIComponent(s.filename||s.file||''))}
+function playSong(i){if(!state.songs[i])return;state.index=i;const s=state.songs[i];audio.src=songUrl(s);audio.play().catch(()=>{});renderNow()}
+function togglePlay(){if(!audio.src&&state.songs.length){playSong(0);return}audio.paused?audio.play():audio.pause()}
+function prev(){playSong(Math.max(0,state.index-1))}
+function next(){if(!state.songs.length)return;let i=state.shuffle?Math.floor(Math.random()*state.songs.length):state.index+1;if(i>=state.songs.length)i=0;playSong(i)}
+function toggleShuffle(){state.shuffle=!state.shuffle}
+function toggleLoop(){state.loop=!state.loop}
+function seek(v){if(audio.duration)audio.currentTime=(v/100)*audio.duration}
+audio.addEventListener('play',()=>document.getElementById('play').textContent='Ⅱ')
+audio.addEventListener('pause',()=>document.getElementById('play').textContent='▶')
+audio.addEventListener('timeupdate',()=>{if(audio.duration){document.getElementById('seek').value=audio.currentTime/audio.duration*100;document.getElementById('current').textContent=fmt(audio.currentTime);document.getElementById('duration').textContent=fmt(audio.duration)}})
+audio.addEventListener('ended',()=>state.loop?audio.play():next())
+function fmt(n){n=Math.floor(n||0);return Math.floor(n/60)+':'+String(n%60).padStart(2,'0')}
+function renderNow(){const s=state.songs[state.index];if(!s)return;document.getElementById('nowTitle').textContent=songTitle(s);document.getElementById('nowArtist').textContent=artistName(s);document.getElementById('nowAlbum').textContent=s.album||s.album_name||'Now Playing';const c=document.getElementById('cover');const art=s.cover_art||s.cover||s.artwork||s.image;if(art)c.innerHTML=img(art);else c.innerHTML='<div class="cover-placeholder">♫</div>'}
+function renderSongs(list=state.songs){document.getElementById('songList').innerHTML=list.map((s,i)=>`<div class="song"><div class="thumb">${img(s.cover_art||s.cover||s.image)}</div><div><b>${esc(songTitle(s))}</b><div class="muted">${esc(artistName(s))}</div></div><button onclick="playSong(${state.songs.indexOf(s)})">▶</button></div>`).join('')||'<div class="card">No songs found.</div>'}
+function renderAlbums(){document.getElementById('albumGrid').innerHTML=state.albums.map(a=>`<div class="album card"><div class="thumb">${img(a.cover_art||a.cover||a.image)}</div><b>${esc(a.title||a.name||'Album')}</b><span class="muted">${esc(a.artist||a.artist_name||'')}</span></div>`).join('')||'<div class="card">No albums found.</div>'}
+function renderArtists(){document.getElementById('artistList').innerHTML=state.artists.map(a=>`<div class="song card"><div class="thumb">${img(a.image||a.avatar)}</div><div><b>${esc(a.name||a.artist||'Artist')}</b><div class="muted">${a.song_count??''} songs</div></div></div>`).join('')||'<div class="card">No artists found.</div>'}
+function renderFavorites(){const list=state.songs.filter(s=>state.favorites.includes(songId(s)));document.getElementById('favList').innerHTML=list.map(s=>`<div class="song card"><div class="thumb">${img(s.cover_art||s.cover||s.image)}</div><div><b>${esc(songTitle(s))}</b><div class="muted">${esc(artistName(s))}</div></div><button onclick="playSong(${state.songs.indexOf(s)})">▶</button></div>`).join('')||'<div class="card">No favorites yet.</div>'}
+function renderPlaylists(){document.getElementById('playlistGrid').innerHTML=state.playlists.map(p=>`<div class="card"><b>${esc(p.name||p.title||'Playlist')}</b><div class="muted">${p.song_count??p.songs?.length??0} songs</div></div>`).join('')||'<div class="card">No playlists found.</div>'}
+function renderRecent(){document.getElementById('recent').innerHTML=state.songs.slice(0,6).map(s=>`<div class="album card" onclick="playSong(${state.songs.indexOf(s)})"><div class="thumb">${img(s.cover_art||s.cover||s.image)}</div><b>${esc(songTitle(s))}</b><span class="muted">${esc(artistName(s))}</span></div>`).join('')}
+function searchAll(q){q=q.toLowerCase();renderSongs(state.songs.filter(s=>(songTitle(s)+' '+artistName(s)+' '+(s.album||'')).toLowerCase().includes(q)))}
+function esc(x){return String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function bars(){document.getElementById('wave').innerHTML=Array.from({length:55},(_,i)=>`<i class="bar" style="height:${18+Math.abs(Math.sin(i*.6))*55}px"></i>`).join('')}
+async function load(){
+ setupNav();bars();
+ const endpoints=[
+   ['/api/songs','songs'],['/api/albums','albums'],['/api/artists','artists'],['/api/playlists','playlists']
+ ];
+ for(const [url,key] of endpoints){try{const r=await api(url);state[key]=Array.isArray(r)?r:(r.data||r[key]||[])}catch(e){console.warn('Could not load',url,e)}}
+ renderSongs();renderAlbums();renderArtists();renderFavorites();renderPlaylists();renderRecent();
+}
+load();
+</script>
+</body>
+</html>

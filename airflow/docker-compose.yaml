@@ -1,0 +1,61 @@
+services:
+  airflow:
+    build: .
+    image: music-airflow:3.1.0
+    container_name: music-airflow
+    command: api-server --host 0.0.0.0 --port 8080
+    ports:
+      - "8081:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "postgresql+psycopg2://postgres:momdad1234@host.docker.internal:5432/airflow"
+      AIRFLOW__CORE__EXECUTION_API_SERVER_URL: "http://music-airflow:8080/execution/"
+      AIRFLOW__API_AUTH__JWT_SECRET: "kW52Fz9TFtV5uG92eOleaQ=="
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - /opt/musicapp/music/Songs:/opt/airflow/music
+      - /opt/musicapp/covers:/opt/airflow/covers
+
+  airflow-scheduler:
+    build: .
+    image: music-airflow:3.1.0
+    container_name: music-airflow-scheduler
+    command: scheduler
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "postgresql+psycopg2://postgres:momdad1234@host.docker.internal:5432/airflow"
+      AIRFLOW__CORE__EXECUTION_API_SERVER_URL: "http://music-airflow:8080/execution/"
+      AIRFLOW__API_AUTH__JWT_SECRET: "kW52Fz9TFtV5uG92eOleaQ=="
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - /opt/musicapp/music/Songs:/opt/airflow/music
+      - /opt/musicapp/covers:/opt/airflow/covers
+  airflow-dag-processor:
+    build: .
+    image: music-airflow:3.1.0
+    container_name: music-airflow-dag-processor
+    command: dag-processor
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "postgresql+psycopg2://postgres:momdad4567@host.docker.internal:5432/airflow"
+      AIRFLOW__CORE__EXECUTION_API_SERVER_URL: "http://music-airflow:8080/execution/"
+      AIRFLOW__API_AUTH__JWT_SECRET: "kW52Fz9TFtV5uG92eOleaQ=="
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - /opt/musicapp/music/Songs:/opt/airflow/music
+      - /opt/musicapp/covers:/opt/airflow/covers
