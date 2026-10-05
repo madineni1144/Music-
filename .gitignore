@@ -54,3 +54,7 @@ temp/
 Thumbs.db
 .vscode/
 .idea/
+
+# Track audio pipeline database migrations
+!audio_pipeline/sql/
+!audio_pipeline/sql/*.sql
