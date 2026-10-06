@@ -1,5 +1,7 @@
 from pathlib import Path
+import hashlib
 import re
+import shutil
 
 from audio_pipeline.scripts.db import get_connection
 
@@ -10,14 +12,14 @@ MUSIC_ROOT = Path("/opt/musicapp/music/Songs")
 def safe_path_name(value):
     """
     Convert metadata into a safe Linux folder/file name while
-    keeping normal spaces and readable song/album names.
+    keeping normal spaces and readable names.
     """
     if value is None:
         return None
 
     cleaned = value.strip()
 
-    # Characters that can cause path problems or ambiguity.
+    # Prevent path separators and null characters.
     cleaned = re.sub(r'[\/\0]', "-", cleaned)
 
     # Remove control characters.
@@ -33,7 +35,26 @@ def safe_path_name(value):
     # Avoid trailing dots/spaces.
     cleaned = cleaned.strip(" .")
 
+    # Prevent special path components.
+    if cleaned in {".", ".."}:
+        return None
+
     return cleaned or None
+
+
+def calculate_sha256(file_path):
+    sha256 = hashlib.sha256()
+
+    with open(file_path, "rb") as file_handle:
+        while True:
+            chunk = file_handle.read(1024 * 1024)
+
+            if not chunk:
+                break
+
+            sha256.update(chunk)
+
+    return sha256.hexdigest()
 
 
 def get_items_for_storage():
@@ -50,6 +71,7 @@ def get_items_for_storage():
                     artist,
                     album,
                     local_file_path,
+                    sha256,
                     status
                 FROM import_items
                 WHERE status IN ('validated', 'warning')
@@ -67,7 +89,8 @@ def get_items_for_storage():
                 "artist": row[3],
                 "album": row[4],
                 "local_file_path": row[5],
-                "status": row[6],
+                "sha256": row[6],
+                "status": row[7],
             }
             for row in rows
         ]
@@ -86,6 +109,9 @@ def build_destination(item):
     if not title:
         raise ValueError("Song title is empty.")
 
+    if not item["local_file_path"]:
+        raise ValueError("Source file path is empty.")
+
     source_path = Path(item["local_file_path"])
 
     extension = source_path.suffix.lower()
@@ -96,7 +122,124 @@ def build_destination(item):
     album_folder = MUSIC_ROOT / album_name
     destination_path = album_folder / f"{title}{extension}"
 
-    return album_folder, destination_path
+    return source_path, album_folder, destination_path
+
+
+def update_final_path(item_id, destination_path):
+    connection = get_connection()
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE import_items
+                SET
+                    local_file_path = %s,
+                    updated_at = NOW()
+                WHERE id = %s
+                  AND status IN ('validated', 'warning');
+                """,
+                (
+                    str(destination_path),
+                    item_id,
+                ),
+            )
+
+            if cursor.rowcount != 1:
+                raise RuntimeError(
+                    f"Import item {item_id} was not updated."
+                )
+
+        connection.commit()
+
+    except Exception:
+        connection.rollback()
+        raise
+
+    finally:
+        connection.close()
+
+
+def copy_and_verify(item):
+    source_path, album_folder, destination_path = build_destination(item)
+
+    if not source_path.exists():
+        raise FileNotFoundError(
+            f"Source file does not exist: {source_path}"
+        )
+
+    if not source_path.is_file():
+        raise RuntimeError(
+            f"Source path is not a file: {source_path}"
+        )
+
+    if destination_path.exists():
+        raise FileExistsError(
+            f"Destination already exists: {destination_path}"
+        )
+
+    expected_sha256 = item["sha256"]
+
+    if not expected_sha256:
+        raise ValueError(
+            f"Import item {item['id']} has no SHA-256 value."
+        )
+
+    source_sha256 = calculate_sha256(source_path)
+
+    if source_sha256 != expected_sha256:
+        raise RuntimeError(
+            "Source SHA-256 does not match the database."
+        )
+
+    album_folder.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    temporary_path = destination_path.with_name(
+        destination_path.name + ".part"
+    )
+
+    if temporary_path.exists():
+        raise FileExistsError(
+            f"Temporary destination already exists: {temporary_path}"
+        )
+
+    try:
+        shutil.copy2(
+            source_path,
+            temporary_path,
+        )
+
+        copied_sha256 = calculate_sha256(temporary_path)
+
+        if copied_sha256 != expected_sha256:
+            raise RuntimeError(
+                "Copied file SHA-256 verification failed."
+            )
+
+        temporary_path.rename(destination_path)
+
+        final_sha256 = calculate_sha256(destination_path)
+
+        if final_sha256 != expected_sha256:
+            raise RuntimeError(
+                "Final file SHA-256 verification failed."
+            )
+
+        update_final_path(
+            item_id=item["id"],
+            destination_path=destination_path,
+        )
+
+    except Exception:
+        if temporary_path.exists():
+            temporary_path.unlink()
+
+        raise
+
+    return destination_path
 
 
 def main():
@@ -105,9 +248,7 @@ def main():
     print(f"Found {len(items)} item(s) ready for storage.")
     print(f"Music root: {MUSIC_ROOT}")
 
-    ready = 0
-    collisions = 0
-    missing = 0
+    stored = 0
     failed = 0
 
     planned_destinations = {}
@@ -119,24 +260,14 @@ def main():
         print(f"Status: {item['status']}")
         print(f"Album: {item['album']}")
         print(f"Title: {item['title']}")
+        print(f"Artist: {item['artist']}")
 
         try:
-            source_path = Path(item["local_file_path"])
+            source_path, album_folder, destination_path = (
+                build_destination(item)
+            )
 
             print(f"Source: {source_path}")
-
-            if not source_path.exists():
-                print("Storage preview: MISSING SOURCE")
-                missing += 1
-                continue
-
-            if not source_path.is_file():
-                print("Storage preview: SOURCE IS NOT A FILE")
-                failed += 1
-                continue
-
-            album_folder, destination_path = build_destination(item)
-
             print(f"Album folder: {album_folder}")
             print(f"Destination: {destination_path}")
 
@@ -145,41 +276,35 @@ def main():
             if destination_key in planned_destinations:
                 previous_id = planned_destinations[destination_key]
 
-                print(
-                    "Storage preview: PLANNED COLLISION "
-                    f"with import item {previous_id}"
+                raise RuntimeError(
+                    "Destination collision with import item "
+                    f"{previous_id}."
                 )
-
-                collisions += 1
-                continue
 
             planned_destinations[destination_key] = item["id"]
 
-            if destination_path.exists():
-                print("Storage preview: DESTINATION ALREADY EXISTS")
-                collisions += 1
-                continue
+            final_path = copy_and_verify(item)
 
-            print("Storage preview: READY")
-            ready += 1
+            print(f"Stored: {final_path}")
+            print("SHA-256 verification: OK")
+            print("Database final path update: OK")
+
+            stored += 1
 
         except Exception as error:
-            print("Storage preview: FAILED")
+            print("Storage: FAILED")
             print(f"Reason: {error}")
+
             failed += 1
 
     print()
     print("=" * 70)
-    print("Storage preview complete.")
+    print("Audio storage stage complete.")
     print(f"Items checked: {len(items)}")
-    print(f"Ready: {ready}")
-    print(f"Collisions: {collisions}")
-    print(f"Missing sources: {missing}")
+    print(f"Stored successfully: {stored}")
     print(f"Failed: {failed}")
     print()
-    print("No folders were created.")
-    print("No audio files were moved.")
-    print("Database was NOT modified.")
+    print("Original staging files were NOT deleted.")
 
 
 if __name__ == "__main__":
