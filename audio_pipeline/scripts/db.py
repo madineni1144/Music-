@@ -274,6 +274,49 @@ def update_import_item_validation(
         connection.close()
 
 
+def update_import_item_metadata(
+    item_id,
+    title,
+    artist,
+    album,
+):
+    connection = get_connection()
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE import_items
+                SET
+                    title = %s,
+                    artist = %s,
+                    album = %s,
+                    updated_at = NOW()
+                WHERE id = %s;
+                """,
+                (
+                    title,
+                    artist,
+                    album,
+                    item_id,
+                ),
+            )
+
+            if cursor.rowcount != 1:
+                raise RuntimeError(
+                    f"Import item {item_id} was not updated."
+                )
+
+        connection.commit()
+
+    except Exception:
+        connection.rollback()
+        raise
+
+    finally:
+        connection.close()
+
+
 def find_duplicate_by_sha256(sha256):
     connection = get_connection()
 
