@@ -43,6 +43,94 @@ def test_connection():
             database = cursor.fetchone()[0]
 
         print(f"PostgreSQL connection: OK ({database})")
+
+    finally:
+        connection.close()
+
+
+def create_import_job(run_id):
+    connection = get_connection()
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO import_jobs (run_id, status)
+                VALUES (%s, %s)
+                RETURNING id;
+                """,
+                (run_id, "running"),
+            )
+
+            job_id = cursor.fetchone()[0]
+
+        connection.commit()
+        return job_id
+
+    except Exception:
+        connection.rollback()
+        raise
+
+    finally:
+        connection.close()
+
+
+def create_import_item(
+    job_id,
+    drive_file_id,
+    original_filename,
+    sha256=None,
+    title=None,
+    artist=None,
+    album=None,
+    local_file_path=None,
+    status="pending",
+):
+    connection = get_connection()
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO import_items (
+                    job_id,
+                    drive_file_id,
+                    original_filename,
+                    sha256,
+                    title,
+                    artist,
+                    album,
+                    local_file_path,
+                    status
+                )
+                VALUES (
+                    %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s
+                )
+                RETURNING id;
+                """,
+                (
+                    job_id,
+                    drive_file_id,
+                    original_filename,
+                    sha256,
+                    title,
+                    artist,
+                    album,
+                    local_file_path,
+                    status,
+                ),
+            )
+
+            item_id = cursor.fetchone()[0]
+
+        connection.commit()
+        return item_id
+
+    except Exception:
+        connection.rollback()
+        raise
+
     finally:
         connection.close()
 
