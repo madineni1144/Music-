@@ -184,6 +184,96 @@ def create_import_item(
         connection.close()
 
 
+def get_pending_import_items():
+    connection = get_connection()
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    id,
+                    job_id,
+                    drive_file_id,
+                    original_filename,
+                    sha256,
+                    local_file_path,
+                    status
+                FROM import_items
+                WHERE status = %s
+                ORDER BY id;
+                """,
+                ("pending",),
+            )
+
+            rows = cursor.fetchall()
+
+        return [
+            {
+                "id": row[0],
+                "job_id": row[1],
+                "drive_file_id": row[2],
+                "original_filename": row[3],
+                "sha256": row[4],
+                "local_file_path": row[5],
+                "status": row[6],
+            }
+            for row in rows
+        ]
+
+    finally:
+        connection.close()
+
+
+def update_import_item_validation(
+    item_id,
+    status,
+    title=None,
+    artist=None,
+    album=None,
+    failure_reason=None,
+):
+    connection = get_connection()
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE import_items
+                SET
+                    status = %s,
+                    title = %s,
+                    artist = %s,
+                    album = %s,
+                    failure_reason = %s,
+                    updated_at = NOW()
+                WHERE id = %s;
+                """,
+                (
+                    status,
+                    title,
+                    artist,
+                    album,
+                    failure_reason,
+                    item_id,
+                ),
+            )
+
+            if cursor.rowcount != 1:
+                raise RuntimeError(
+                    f"Import item {item_id} was not updated."
+                )
+
+        connection.commit()
+
+    except Exception:
+        connection.rollback()
+        raise
+
+    finally:
+        connection.close()
+
+
 def find_duplicate_by_sha256(sha256):
     connection = get_connection()
 

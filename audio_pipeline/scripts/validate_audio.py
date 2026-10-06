@@ -1,20 +1,11 @@
 from pathlib import Path
-import hashlib
 import json
 import subprocess
 
-
-STAGING_DIR = Path("/opt/musicapp/staging/incoming")
-
-
-def calculate_sha256(file_path):
-    sha256 = hashlib.sha256()
-
-    with file_path.open("rb") as file:
-        for chunk in iter(lambda: file.read(1024 * 1024), b""):
-            sha256.update(chunk)
-
-    return sha256.hexdigest()
+from audio_pipeline.scripts.db import (
+    get_pending_import_items,
+    update_import_item_validation,
+)
 
 
 def probe_audio(file_path):
@@ -36,7 +27,11 @@ def probe_audio(file_path):
     if result.returncode != 0:
         return None, result.stderr.strip()
 
-    return json.loads(result.stdout), None
+    try:
+        return json.loads(result.stdout), None
+
+    except json.JSONDecodeError as error:
+        return None, f"Invalid ffprobe JSON: {error}"
 
 
 def decode_audio(file_path):
@@ -66,42 +61,156 @@ def decode_audio(file_path):
     return "OK", None
 
 
+def validate_item(item):
+    file_path = Path(item["local_file_path"])
+
+    print()
+    print("=" * 60)
+    print(f"Import item ID: {item['id']}")
+    print(f"File: {item['original_filename']}")
+    print(f"Path: {file_path}")
+
+    if not file_path.exists():
+        reason = "File does not exist."
+
+        update_import_item_validation(
+            item_id=item["id"],
+            status="failed",
+            failure_reason=reason,
+        )
+
+        print("Validation: FAILED")
+        print(f"Reason: {reason}")
+
+        return "FAILED"
+
+    if not file_path.is_file():
+        reason = "Path is not a regular file."
+
+        update_import_item_validation(
+            item_id=item["id"],
+            status="failed",
+            failure_reason=reason,
+        )
+
+        print("Validation: FAILED")
+        print(f"Reason: {reason}")
+
+        return "FAILED"
+
+    metadata, error = probe_audio(file_path)
+
+    if error:
+        update_import_item_validation(
+            item_id=item["id"],
+            status="failed",
+            failure_reason=error,
+        )
+
+        print("FFprobe: FAILED")
+        print(f"Reason: {error}")
+
+        return "FAILED"
+
+    audio_format = metadata.get("format", {})
+    tags = audio_format.get("tags", {})
+
+    title = tags.get("title")
+    artist = tags.get("artist")
+    album = tags.get("album")
+
+    print("FFprobe: OK")
+    print(f"Duration: {audio_format.get('duration')}")
+    print(f"Size: {audio_format.get('size')}")
+    print(f"Title: {title}")
+    print(f"Artist: {artist}")
+    print(f"Album: {album}")
+
+    decode_status, decode_message = decode_audio(file_path)
+
+    print(f"Full Decode: {decode_status}")
+
+    if decode_message:
+        print(f"Decoder message: {decode_message}")
+
+    if decode_status == "FAILED":
+        update_import_item_validation(
+            item_id=item["id"],
+            status="failed",
+            title=title,
+            artist=artist,
+            album=album,
+            failure_reason=decode_message,
+        )
+
+        print("Validation: FAILED")
+        return "FAILED"
+
+    if decode_status == "WARNING":
+        update_import_item_validation(
+            item_id=item["id"],
+            status="warning",
+            title=title,
+            artist=artist,
+            album=album,
+            failure_reason=decode_message,
+        )
+
+        print("Validation: WARNING")
+        return "WARNING"
+
+    update_import_item_validation(
+        item_id=item["id"],
+        status="validated",
+        title=title,
+        artist=artist,
+        album=album,
+        failure_reason=None,
+    )
+
+    print("Validation: OK")
+    return "OK"
+
+
 def main():
-    audio_files = sorted(STAGING_DIR.glob("*.mp3"))
+    pending_items = get_pending_import_items()
 
-    print(f"Found {len(audio_files)} MP3 file(s).")
+    print(f"Found {len(pending_items)} pending import item(s).")
 
-    for file_path in audio_files:
-        print()
-        print("=" * 60)
-        print(f"File: {file_path.name}")
+    validated = 0
+    warnings = 0
+    failed = 0
 
-        sha256 = calculate_sha256(file_path)
-        print(f"SHA256: {sha256}")
+    for item in pending_items:
+        try:
+            status = validate_item(item)
 
-        metadata, error = probe_audio(file_path)
+            if status == "OK":
+                validated += 1
 
-        if error:
-            print("FFprobe: FAILED")
+            elif status == "WARNING":
+                warnings += 1
+
+            else:
+                failed += 1
+
+        except Exception as error:
+            failed += 1
+
+            print()
+            print("=" * 60)
+            print(f"Import item ID: {item['id']}")
+            print(f"File: {item['original_filename']}")
+            print("Validation: FAILED")
             print(f"Reason: {error}")
-            continue
 
-        audio_format = metadata.get("format", {})
-        tags = audio_format.get("tags", {})
-
-        print("FFprobe: OK")
-        print(f"Duration: {audio_format.get('duration')}")
-        print(f"Size: {audio_format.get('size')}")
-        print(f"Title: {tags.get('title')}")
-        print(f"Artist: {tags.get('artist')}")
-        print(f"Album: {tags.get('album')}")
-
-        decode_status, decode_message = decode_audio(file_path)
-
-        print(f"Full Decode: {decode_status}")
-
-        if decode_message:
-            print(f"Decoder message: {decode_message}")
+    print()
+    print("=" * 60)
+    print("Audio validation complete.")
+    print(f"Pending items checked: {len(pending_items)}")
+    print(f"Validated OK: {validated}")
+    print(f"Warnings: {warnings}")
+    print(f"Failed: {failed}")
 
 
 if __name__ == "__main__":
