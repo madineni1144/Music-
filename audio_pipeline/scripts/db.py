@@ -55,17 +55,66 @@ def create_import_job(run_id):
         with connection.cursor() as cursor:
             cursor.execute(
                 """
-                INSERT INTO import_jobs (run_id, status)
+                INSERT INTO import_jobs (
+                    run_id,
+                    status
+                )
                 VALUES (%s, %s)
                 RETURNING id;
                 """,
-                (run_id, "running"),
+                (
+                    run_id,
+                    "running",
+                ),
             )
 
             job_id = cursor.fetchone()[0]
 
         connection.commit()
         return job_id
+
+    except Exception:
+        connection.rollback()
+        raise
+
+    finally:
+        connection.close()
+
+
+def complete_import_job(
+    job_id,
+    total_files,
+    successful_files=0,
+    failed_files=0,
+    duplicate_files=0,
+):
+    connection = get_connection()
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE import_jobs
+                SET
+                    status = %s,
+                    total_files = %s,
+                    successful_files = %s,
+                    failed_files = %s,
+                    duplicate_files = %s,
+                    completed_at = NOW()
+                WHERE id = %s;
+                """,
+                (
+                    "completed",
+                    total_files,
+                    successful_files,
+                    failed_files,
+                    duplicate_files,
+                    job_id,
+                ),
+            )
+
+        connection.commit()
 
     except Exception:
         connection.rollback()
