@@ -13,6 +13,15 @@ WATERMARK_NAMES = [
 ]
 
 
+# Canonical album/category mappings.
+#
+# Any incoming album matching one of these names will automatically
+# be stored using the mapped album name.
+ALBUM_MAPPINGS = {
+    "telugu folk songs": "Private Songs",
+}
+
+
 def remove_watermarks(value):
     if value is None:
         return None
@@ -77,7 +86,19 @@ def clean_album(album):
     cleaned = re.sub(r"\s+", " ", cleaned)
     cleaned = cleaned.strip(" -:|")
 
-    return cleaned or None
+    if not cleaned:
+        return None
+
+    # Apply canonical album/category mappings.
+    #
+    # Example:
+    #   "Telugu Folk Songs" -> "Private Songs"
+    mapped_album = ALBUM_MAPPINGS.get(cleaned.casefold())
+
+    if mapped_album:
+        return mapped_album
+
+    return cleaned
 
 
 def get_items_for_normalization():
