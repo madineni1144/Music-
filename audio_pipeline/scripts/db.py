@@ -135,5 +135,45 @@ def create_import_item(
         connection.close()
 
 
+def find_duplicate_by_sha256(sha256):
+    connection = get_connection()
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    id,
+                    job_id,
+                    drive_file_id,
+                    original_filename,
+                    sha256,
+                    status
+                FROM import_items
+                WHERE sha256 = %s
+                ORDER BY id
+                LIMIT 1;
+                """,
+                (sha256,),
+            )
+
+            row = cursor.fetchone()
+
+        if row is None:
+            return None
+
+        return {
+            "id": row[0],
+            "job_id": row[1],
+            "drive_file_id": row[2],
+            "original_filename": row[3],
+            "sha256": row[4],
+            "status": row[5],
+        }
+
+    finally:
+        connection.close()
+
+
 if __name__ == "__main__":
     test_connection()
