@@ -905,8 +905,11 @@ function browseHome(button){
 
 async function init(){
   $("quick").innerHTML='<p class="status">Loading your music library…</p>';
-  try{data=await loadAllSongs(SONGS_API);if(!Array.isArray(data)||!data.length)throw new Error("No songs returned");render();
+  try{data=await loadAllSongs(SONGS_API);if(!Array.isArray(data)||!data.length)throw new Error("No songs returned");
   try{const r=await fetch(`${API_BASE}/api/playlists`);if(r.ok){const p=await r.json();serverPlaylists=Array.isArray(p)?p:(p.data||[])}}catch{}
+  render();
+  // Rebuild the Library tab that is showing, so it reflects data that loaded after it was first drawn.
+  renderLibrary(document.querySelector("[data-library].active")?.dataset.library||"playlists");
   if(data.length && !playQueue.length){
     buildQueue(data,data[0].id,"Library");
   }
