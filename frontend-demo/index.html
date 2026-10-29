@@ -450,7 +450,8 @@ const safeArtist=s=>s.artist||"Unknown Artist";
 const safeAlbum=s=>s.album||"Unknown Album";
 const duration=n=>{n=Math.max(0,Math.floor(Number(n)||0));return `${Math.floor(n/60)}:${String(n%60).padStart(2,"0")}`};
 const fileName=p=>String(p||"").split(/[\\/]/).pop();
-const audioUrl=s=>`${API_BASE}/music/${encodeURIComponent(fileName(s.file_path))}`;
+const libraryPath=p=>String(p||"").replace(/\\/g,"/").replace(/^\/opt\/musicapp\/music\/Songs\//,"").replace(/^\/music\//,"").split("/").filter(Boolean).map(encodeURIComponent).join("/");
+const audioUrl=s=>s.audio_url?`${API_BASE}${s.audio_url}`:`${API_BASE}/music/${libraryPath(s.file_path)}`;
 const coverUrl=s=>{
 const p=s.cover_art||s.cover_path||"";
 if(!p)return "";
@@ -494,7 +495,18 @@ function render(){
   bindSongs();
 }
 function bindSongs(){document.querySelectorAll("[data-id]").forEach(el=>el.onclick=()=>{const i=data.findIndex(s=>String(s.id)===el.dataset.id);if(i>=0)select(i,true)})}
-function renderPlaylistCards(){const html=savedMixes.map(m=>`<button class="card" data-mix="${esc(m.name)}"><div class="art">♫</div><b>${esc(m.name)}</b><small>Saved mix • ${m.ids.length} songs</small></button>`).join("");$("playlists").innerHTML=html||'<p class="emptyState">No saved mixes yet. Save the Telugu Hits mix from Home.</p>'}
+let serverPlaylists=[];
+function renderPlaylistCards(){const serverHtml=serverPlaylists.map(p=>`<button class="card" data-server-playlist="${esc(p.id)}"><div class="art">♫</div><b>${esc(p.name||"Playlist")}</b><small>Playlist • ${Number(p.song_count)||0} songs</small></button>`).join("");const html=serverHtml+savedMixes.map(m=>`<button class="card" data-mix="${esc(m.name)}"><div class="art">♫</div><b>${esc(m.name)}</b><small>Saved mix • ${m.ids.length} songs</small></button>`).join("");$("playlists").innerHTML=html||'<p class="emptyState">No playlists yet. Save the Telugu Hits mix from Home.</p>'}
+async function openServerPlaylist(id){
+  const response=await fetch(`${API_BASE}/api/playlists/${encodeURIComponent(id)}/songs`);
+  if(!response.ok)return;
+  const payload=await response.json();
+  const songs=(payload.data||[]).map(s=>data.find(x=>String(x.id)===String(s.id))).filter(Boolean);
+  if(!songs.length)return;
+  const first=data.findIndex(s=>String(s.id)===String(songs[0].id));
+  buildQueue(songs,songs[0].id,"Playlist");
+  select(first,true,true);
+}
 function setArt(el,s,fallback="♫"){
   const html=artHTML(s,fallback);
   if(el._lastArtHTML===html)return;
@@ -517,6 +529,7 @@ function sync(){
   document.querySelector(".seekline span:last-child").textContent=duration(d);
   document.querySelector(".fullseek .seekline span:last-child").textContent=duration(d);
   updateHeart();
+  updateMediaSession();
 }
 async function select(i,autoplay=false,fromQueue=false){
   if(!data.length)return;
@@ -573,6 +586,7 @@ async function select(i,autoplay=false,fromQueue=false){
     syncQueueToSong(s);
   }
 
+  if(autoplay)wasPlaying=true;
   audio.src=audioUrl(s);
   const playRequest=autoplay ? audio.play() : null;
   if(playRequest)playRequest.catch(()=>{});
@@ -587,17 +601,64 @@ async function select(i,autoplay=false,fromQueue=false){
   }
 }
 async function togglePlay(){if(!data.length)return;if(!audio.src)await select(current,false);if(audio.paused){try{await audio.play()}catch(e){console.error(e)}}else audio.pause()}
-audio.addEventListener("play",()=>{playing=true;sync()});audio.addEventListener("pause",()=>{playing=false;sync()});audio.addEventListener("timeupdate",sync);audio.addEventListener("loadedmetadata",sync);audio.addEventListener("ended",()=>{
+let wasPlaying=false,playbackErrors=0;
+audio.addEventListener("play",()=>{playing=true;wasPlaying=true;sync()});audio.addEventListener("pause",()=>{playing=false;wasPlaying=false;sync()});audio.addEventListener("playing",()=>{playbackErrors=0});audio.addEventListener("timeupdate",sync);audio.addEventListener("loadedmetadata",sync);audio.addEventListener("ended",()=>{
   if(repeatMode==="one"){
     audio.currentTime=0;
     audio.play().catch(console.error);
   }else{
     queueNext();
   }
-});audio.addEventListener("error",()=>{playing=false;sync();console.error("Audio failed:",audio.src)});
+});audio.addEventListener("error",()=>{playing=false;sync();console.error("Audio failed:",audio.src);if(wasPlaying&&++playbackErrors<=3){queueNext()}else{wasPlaying=false}});
+
+/* ===== LOCK SCREEN, CAR AND BLUETOOTH CONTROLS =====
+   Phones show the media session's title and artist on the lock screen,
+   the car display and Bluetooth head units. */
+let mediaSessionSongId=null;
+function updateMediaSession(){
+  if(!("mediaSession" in navigator)||!data.length)return;
+  const s=data[current];
+  if(!s)return;
+  if(typeof MediaMetadata!=="undefined" && String(s.id)!==mediaSessionSongId){
+    mediaSessionSongId=String(s.id);
+    const art=coverUrl(s);
+    navigator.mediaSession.metadata=new MediaMetadata({
+      title:s.title||"Untitled",
+      artist:safeArtist(s),
+      album:safeAlbum(s),
+      artwork:art?[{src:art,sizes:"512x512"}]:[]
+    });
+  }
+  navigator.mediaSession.playbackState=audio.paused?"paused":"playing";
+  if(navigator.mediaSession.setPositionState&&Number.isFinite(audio.duration)&&audio.duration>0){
+    try{
+      navigator.mediaSession.setPositionState({
+        duration:audio.duration,
+        playbackRate:audio.playbackRate||1,
+        position:Math.min(audio.currentTime,audio.duration)
+      });
+    }catch{}
+  }
+}
+function setupMediaSessionControls(){
+  if(!("mediaSession" in navigator))return;
+  const actions={
+    play:()=>{if(!audio.src)return togglePlay();audio.play().catch(()=>{})},
+    pause:()=>audio.pause(),
+    previoustrack:()=>queuePrevious(),
+    nexttrack:()=>queueNext(),
+    seekto:d=>{if(d.seekTime!=null&&Number.isFinite(audio.duration))audio.currentTime=d.seekTime}
+  };
+  for(const [action,handler] of Object.entries(actions)){
+    // Browsers reject actions they don't support; skip those quietly.
+    try{navigator.mediaSession.setActionHandler(action,handler)}catch{}
+  }
+}
+setupMediaSessionControls();
 
 function openAlbum(name){const songs=data.filter(s=>safeAlbum(s)===name);if(!songs.length)return;$("albumTitle").textContent=name;setArt($("albumArt"),songs[0],name.slice(0,2).toUpperCase());$("albumMeta").textContent=`${songs.length} song${songs.length===1?"":"s"} • ${safeArtist(songs[0])}`;$("albumSongs").innerHTML=songs.map((s,i)=>row(s,i,true)).join("");const saved=savedAlbums.has(name);$("albumSave").textContent=saved?"✓ In Library":"＋ Library";$("albumSave").setAttribute("aria-pressed",String(saved));bindSongs();page("album")}
 document.addEventListener("click",e=>{
+  const serverPlaylist=e.target.closest("[data-server-playlist]");if(serverPlaylist){openServerPlaylist(serverPlaylist.dataset.serverPlaylist);return}
   const mix=e.target.closest("[data-mix]");if(mix){const saved=savedMixes.find(m=>m.name===mix.dataset.mix);const ids=new Set(saved?.ids||[]);const songs=data.filter(s=>ids.has(String(s.id)));if(songs.length){buildQueue(songs,songs[0].id,saved.name);select(data.findIndex(s=>String(s.id)===String(songs[0].id)),true,true)}return}
   const albumCard=e.target.closest("[data-album]");
   if(albumCard && uniqueAlbums().some(([a])=>a===albumCard.dataset.album)){
@@ -768,8 +829,8 @@ function renderLibrary(type){
 
   if(type==="albums"){
     title.textContent="Albums";
-    const albums=uniqueAlbums().filter(([a])=>savedAlbums.has(a));
-    $("playlists").innerHTML=albums.length?albums.map(([a,s])=>card(a,`${safeArtist(s)} • Album`,s)).join(""):'<p class="emptyState">No saved albums yet. Open an album and tap “＋ Library”.</p>';
+    const albums=uniqueAlbums();
+    $("playlists").innerHTML=albums.length?albums.map(([a,s])=>card(a,`${safeArtist(s)} • Album`,s)).join(""):'<p class="emptyState">No albums in your library yet.</p>';
   }
 
   if(type==="songs"){
@@ -845,6 +906,7 @@ function browseHome(button){
 async function init(){
   $("quick").innerHTML='<p class="status">Loading your music library…</p>';
   try{data=await loadAllSongs(SONGS_API);if(!Array.isArray(data)||!data.length)throw new Error("No songs returned");render();
+  try{const r=await fetch(`${API_BASE}/api/playlists`);if(r.ok){const p=await r.json();serverPlaylists=Array.isArray(p)?p:(p.data||[])}}catch{}
   if(data.length && !playQueue.length){
     buildQueue(data,data[0].id,"Library");
   }

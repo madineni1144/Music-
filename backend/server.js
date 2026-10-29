@@ -49,6 +49,22 @@ function withAudioUrl(row) {
 app.use(cors());
 app.use(express.json());
 
+// Old backups, generator scripts and editor copies in the frontend folders
+// are not meant to be public. Anything under /api, /music or /covers is
+// left alone.
+const hiddenFrontendFile = /(^|[-._])(before|backup|working)|\.(save|bak|py)$|^\/?madineni$/i;
+app.use((req, res, next) => {
+  if (/^\/(api|music|covers)(\/|$)/.test(req.path)) return next();
+  let name;
+  try {
+    name = decodeURIComponent(req.path);
+  } catch {
+    return res.status(400).end();
+  }
+  if (hiddenFrontendFile.test(name)) return res.status(404).end();
+  next();
+});
+
 app.use(express.static(FRONTEND_DIR));
 app.use("/music", express.static(MUSIC_DIR));
 app.use("/covers", express.static(COVERS_DIR));
