@@ -1,223 +1,414 @@
-from pathlib import Path
-from datetime import datetime, timezone
+import argparse
 import hashlib
+import os
+import re
+from datetime import datetime, timezone
+from pathlib import Path
 
 from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 
 from audio_pipeline.scripts.db import (
-    create_import_job,
+    get_or_create_import_job,
+    get_import_job,
+    get_import_items,
     complete_import_job,
     create_import_item,
     find_duplicate_by_drive_file_id,
     find_duplicate_by_sha256,
+    get_connection,
 )
 
+TOKEN_FILE = Path(
+    os.getenv(
+        "GOOGLE_DRIVE_TOKEN_FILE",
+        "/home/rk/google_drive_token.json",
+    )
+)
 
-TOKEN_FILE = "/home/rk/google_drive_token.json"
 INCOMING_FOLDER_ID = "1QZWFD51jh4_gtHOBfi7bauhJLB9_QTaC"
 STAGING_DIR = Path("/opt/musicapp/staging/incoming")
-
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 
 
-def calculate_sha256(file_path):
-    sha256 = hashlib.sha256()
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Download and track incoming music."
+    )
+    parser.add_argument(
+        "--run-id",
+        help="Stable run identifier for Airflow retries.",
+    )
+    return parser.parse_args()
 
-    with file_path.open("rb") as file:
-        for chunk in iter(lambda: file.read(1024 * 1024), b""):
-            sha256.update(chunk)
 
-    return sha256.hexdigest()
+def calculate_sha256(path):
+    digest = hashlib.sha256()
+
+    with path.open("rb") as source:
+        for chunk in iter(
+            lambda: source.read(1024 * 1024),
+            b"",
+        ):
+            digest.update(chunk)
+
+    return digest.hexdigest()
 
 
-def download_file(drive, drive_file_id, destination):
-    temporary_destination = destination.with_name(
+def get_drive_service():
+    credentials = Credentials.from_authorized_user_file(
+        str(TOKEN_FILE),
+        SCOPES,
+    )
+
+    if credentials.expired:
+        if not credentials.refresh_token:
+            raise RuntimeError(
+                "Google Drive refresh token unavailable."
+            )
+
+        credentials.refresh(Request())
+
+        TOKEN_FILE.write_text(
+            credentials.to_json(),
+            encoding="utf-8",
+        )
+        TOKEN_FILE.chmod(0o600)
+
+    if not credentials.valid:
+        raise RuntimeError(
+            "Google Drive credentials invalid."
+        )
+
+    return build(
+        "drive",
+        "v3",
+        credentials=credentials,
+        cache_discovery=False,
+    )
+
+
+def list_audio_files(drive):
+    results = []
+    page_token = None
+
+    while True:
+        response = drive.files().list(
+            q=(
+                f"'{INCOMING_FOLDER_ID}' in parents "
+                "and trashed=false"
+            ),
+            fields=(
+                "nextPageToken,"
+                "files(id,name,mimeType,size)"
+            ),
+            pageSize=1000,
+            pageToken=page_token,
+        ).execute()
+
+        for item in response.get("files", []):
+            if item.get(
+                "mimeType", ""
+            ).startswith("audio/"):
+                results.append(item)
+
+        page_token = response.get("nextPageToken")
+
+        if not page_token:
+            break
+
+    return sorted(
+        results,
+        key=lambda item: item["id"],
+    )
+
+
+def staged_path(item):
+    drive_id = item["id"]
+
+    if not re.fullmatch(
+        r"[A-Za-z0-9_-]+",
+        drive_id,
+    ):
+        raise ValueError(
+            "Invalid Google Drive file ID."
+        )
+
+    filename = Path(item["name"]).name
+
+    if filename in ("", ".", ".."):
+        raise ValueError(
+            "Invalid audio filename."
+        )
+
+    return STAGING_DIR / drive_id / filename
+
+
+def download_file(drive, file_id, destination):
+    destination.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    temporary = destination.with_name(
         destination.name + ".part"
     )
 
-    request = drive.files().get_media(fileId=drive_file_id)
+    if temporary.exists():
+        temporary.unlink()
+
+    request = drive.files().get_media(
+        fileId=file_id
+    )
 
     try:
-        with temporary_destination.open("wb") as output:
-            downloader = MediaIoBaseDownload(output, request)
+        with temporary.open("wb") as output:
+            downloader = MediaIoBaseDownload(
+                output,
+                request,
+            )
 
             done = False
 
             while not done:
-                status, done = downloader.next_chunk()
+                _, done = downloader.next_chunk()
 
-                if status:
-                    print(
-                        f"  Progress: "
-                        f"{int(status.progress() * 100)}%"
-                    )
-
-        temporary_destination.replace(destination)
+        temporary.replace(destination)
 
     except Exception:
-        if temporary_destination.exists():
-            temporary_destination.unlink()
-
+        temporary.unlink(missing_ok=True)
         raise
 
 
+def set_job_failed(
+    job_id,
+    total_files,
+    successful_files,
+    failed_files,
+    duplicate_files,
+):
+    connection = get_connection()
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE import_jobs
+                SET
+                    status = 'failed',
+                    total_files = %s,
+                    successful_files = %s,
+                    failed_files = %s,
+                    duplicate_files = %s,
+                    completed_at = NULL
+                WHERE id = %s;
+                """,
+                (
+                    total_files,
+                    successful_files,
+                    failed_files,
+                    duplicate_files,
+                    job_id,
+                ),
+            )
+
+            if cursor.rowcount != 1:
+                raise RuntimeError(
+                    f"Import job {job_id} not found."
+                )
+
+        connection.commit()
+
+    except Exception:
+        connection.rollback()
+        raise
+
+    finally:
+        connection.close()
+
+
 def main():
-    run_id = datetime.now(timezone.utc).strftime(
-        "drive-import-%Y%m%d-%H%M%S"
+    args = parse_args()
+
+    run_id = args.run_id or (
+        datetime.now(timezone.utc).strftime(
+            "drive-import-%Y%m%d-%H%M%S-%f"
+        )
     )
 
-    job_id = create_import_job(run_id)
+    job_id = get_or_create_import_job(run_id)
+    job = get_import_job(job_id)
 
+    print("=" * 70)
+    print("GOOGLE DRIVE INCOMING DOWNLOAD")
+    print("=" * 70)
     print(f"Import run: {run_id}")
     print(f"Import job ID: {job_id}")
-    print()
+    print(f"Existing status: {job['status']}")
 
-    creds = Credentials.from_authorized_user_file(
-        TOKEN_FILE,
-        SCOPES,
+    if job["status"] == "completed":
+        print(
+            "This run already completed download/tracking. "
+            "Reusing existing records."
+        )
+        print(f"IMPORT_JOB_ID={job_id}")
+        return
+
+    drive = get_drive_service()
+
+    STAGING_DIR.mkdir(
+        parents=True,
+        exist_ok=True,
     )
 
-    drive = build("drive", "v3", credentials=creds)
-
-    STAGING_DIR.mkdir(parents=True, exist_ok=True)
-
-    files = drive.files().list(
-        q=f"'{INCOMING_FOLDER_ID}' in parents and trashed=false",
-        fields="files(id,name,mimeType,size)",
-    ).execute().get("files", [])
-
-    audio_files = [
-        file
-        for file in files
-        if file.get("mimeType", "").startswith("audio/")
-    ]
-
-    total_files = len(audio_files)
-
-    print(f"Found {total_files} audio file(s).")
+    files = list_audio_files(drive)
 
     downloaded = 0
     reused_staged = 0
-    tracked = 0
-    skipped_drive = 0
-    duplicate_audio = 0
-    failed_files = 0
+    newly_tracked = 0
+    duplicates = 0
+    skipped = 0
+    failures = 0
 
-    for item in audio_files:
-        drive_file_id = item["id"]
+    for item in files:
+        file_id = item["id"]
         filename = item["name"]
-        destination = STAGING_DIR / filename
 
-        print()
-        print(f"Checking: {filename}")
+        print(
+            f"Checking: {filename} ({file_id})"
+        )
 
         try:
-            existing_drive_item = find_duplicate_by_drive_file_id(
-                drive_file_id
+            existing = find_duplicate_by_drive_file_id(
+                file_id
             )
 
-            if existing_drive_item:
-                print("Skipped: Drive file already tracked.")
+            if existing:
+                skipped += 1
                 print(
-                    f"Existing import item ID: "
-                    f"{existing_drive_item['id']}"
+                    "Already tracked as item "
+                    f"{existing['id']}."
                 )
-                skipped_drive += 1
                 continue
 
+            destination = staged_path(item)
+
             if destination.exists():
-                print("Using existing staged file.")
+                if not destination.is_file():
+                    raise RuntimeError(
+                        "Staging path is not a regular file."
+                    )
+
+                expected_size = item.get("size")
+
+                if (
+                    expected_size is not None
+                    and destination.stat().st_size
+                    != int(expected_size)
+                ):
+                    raise RuntimeError(
+                        "Existing staged file size differs "
+                        "from Google Drive. "
+                        "Manual review required."
+                    )
+
                 reused_staged += 1
 
             else:
-                print(f"Downloading: {filename}")
-
                 download_file(
                     drive,
-                    drive_file_id,
+                    file_id,
                     destination,
                 )
-
-                print(f"Saved: {destination}")
                 downloaded += 1
 
-            sha256 = calculate_sha256(destination)
+            sha256 = calculate_sha256(
+                destination
+            )
 
-            print(f"SHA256: {sha256}")
-
-            existing_audio_item = find_duplicate_by_sha256(
+            previous = find_duplicate_by_sha256(
                 sha256
             )
 
-            if existing_audio_item:
-                print("Duplicate audio content detected.")
-                print(
-                    f"Existing import item ID: "
-                    f"{existing_audio_item['id']}"
-                )
+            status = (
+                "duplicate"
+                if previous is not None
+                else "pending"
+            )
 
-                create_import_item(
-                    job_id=job_id,
-                    drive_file_id=drive_file_id,
-                    original_filename=filename,
-                    sha256=sha256,
-                    local_file_path=str(destination),
-                    status="duplicate",
-                )
-
-                duplicate_audio += 1
-                tracked += 1
-                continue
-
-            item_id = create_import_item(
+            created_id = create_import_item(
                 job_id=job_id,
-                drive_file_id=drive_file_id,
+                drive_file_id=file_id,
                 original_filename=filename,
                 sha256=sha256,
                 local_file_path=str(destination),
-                status="pending",
+                status=status,
             )
 
-            print(f"Tracked as import item ID: {item_id}")
-            tracked += 1
-
-        except Exception as error:
-            failed_files += 1
+            if status == "duplicate":
+                duplicates += 1
+            else:
+                newly_tracked += 1
 
             print(
-                f"FAILED: {filename}: "
-                f"{error}"
+                f"Tracked item {created_id}: {status}"
             )
 
-    successful_files = (
-        total_files
-        - failed_files
-        - duplicate_audio
+        except Exception as error:
+            failures += 1
+            print(
+                f"FAILED: {filename}: {error}"
+            )
+
+    all_items = get_import_items(
+        job_id=job_id
     )
 
-    complete_import_job(
-        job_id=job_id,
-        total_files=total_files,
-        successful_files=successful_files,
-        failed_files=failed_files,
-        duplicate_files=duplicate_audio,
+    pending_count = sum(
+        row["status"] != "duplicate"
+        for row in all_items
     )
 
-    print()
-    print("Download/tracking stage complete.")
-    print(f"Import run: {run_id}")
-    print(f"Import job ID: {job_id}")
-    print(f"Total Drive files: {total_files}")
-    print(f"Downloaded: {downloaded}")
-    print(f"Reused staged files: {reused_staged}")
-    print(f"New tracking records: {tracked}")
-    print(f"Skipped existing Drive files: {skipped_drive}")
-    print(f"Duplicate audio files: {duplicate_audio}")
-    print(f"Failed files: {failed_files}")
-    print(f"Successful files: {successful_files}")
-    print("Job status: completed")
+    duplicate_count = sum(
+        row["status"] == "duplicate"
+        for row in all_items
+    )
+
+    if failures:
+        set_job_failed(
+            job_id=job_id,
+            total_files=len(files),
+            successful_files=pending_count,
+            failed_files=failures,
+            duplicate_files=duplicate_count,
+        )
+    else:
+        complete_import_job(
+            job_id=job_id,
+            total_files=len(files),
+            successful_files=pending_count,
+            failed_files=0,
+            duplicate_files=duplicate_count,
+        )
+
+    print("=" * 70)
+    print(f"Import job ID:        {job_id}")
+    print(f"Drive audio files:    {len(files)}")
+    print(f"Downloaded:           {downloaded}")
+    print(f"Reused staged:        {reused_staged}")
+    print(f"New tracking records: {newly_tracked}")
+    print(f"Duplicates this run:  {duplicates}")
+    print(f"Already tracked:      {skipped}")
+    print(f"Failed:               {failures}")
+    print(f"IMPORT_JOB_ID={job_id}")
+
+    if failures:
+        raise RuntimeError(
+            f"{failures} files failed during download. "
+            "Retry with the same --run-id."
+        )
 
 
 if __name__ == "__main__":

@@ -33,6 +33,11 @@ connectionTimeoutMillis: 5000
 ROOT
 ========================= */
 
+// MADINENI LYRICS START
+require("./madineni-lyrics.cjs").mount(app, pool, {musicDir:MUSIC_DIR});
+// MADINENI LYRICS END
+
+
 app.get("/", (req, res) => {
 res.sendFile(
 path.join(FRONTEND_DIR, "index.html")
@@ -42,6 +47,39 @@ path.join(FRONTEND_DIR, "index.html")
 /* =========================
 HEALTH
 ========================= */
+
+
+// MADINENI_COVER_FIX_V2
+const coverFs = require("fs");
+const coverPathLib = require("path");
+const fallbackCover = "/covers/default-cover.svg";
+
+function findMusicCover(row, albumMode) {
+  const options = [
+    row.cover_path,
+    row.album_id && `/covers/album-${row.album_id}.jpg`,
+    albumMode && `/covers/album-${row.id}.jpg`,
+    albumMode && `/covers/${row.id}.jpg`,
+    row.cover_art
+  ];
+
+  for (const url of options) {
+    if (typeof url !== "string" ||
+        !url.startsWith("/covers/")) continue;
+
+    const name = url.slice(8);
+    if (!name || name.includes("/") ||
+        name.includes("\\") || name.includes("..")) continue;
+
+    try {
+      if (coverFs.statSync(
+        coverPathLib.join(COVERS_DIR, name)
+      ).isFile()) return url;
+    } catch (_) {}
+  }
+
+  return fallbackCover;
+}
 
 app.get("/api/health", async (req, res) => {
 
@@ -254,7 +292,7 @@ const result =
       songs.file_format,
       songs.file_size,
       songs.created_at,
-      '/covers/' || songs.id || '.jpg' AS cover_art
+      COALESCE(NULLIF(albums.cover_path, ''), '/covers/' || songs.id || '.jpg') AS cover_art
 
     FROM songs
 
@@ -274,7 +312,7 @@ const result =
     values
   );
 
-res.json(result.rows);
+res.json(result.rows.map(row => ({...row, cover_art: findMusicCover(row, false)})));
 
 } catch (error) {
 
@@ -471,7 +509,7 @@ const result =
       albums.year,
       albums.cover_path,
       COUNT(songs.id) AS song_count,
-      '/covers/' || MIN(songs.id) || '.jpg' AS cover_art
+      COALESCE(NULLIF(albums.cover_path, ''), '/covers/' || MIN(songs.id) || '.jpg') AS cover_art
 
     FROM albums
 
@@ -489,12 +527,14 @@ const result =
       albums.year,
       albums.cover_path
 
+    HAVING COUNT(songs.id) > 0
+
     ORDER BY
       albums.title ASC
     `
   );
 
-res.json(result.rows);
+res.json(result.rows.map(row => ({...row, cover_art: findMusicCover(row, true)})));
 
 } catch (error) {
 
@@ -993,6 +1033,74 @@ try {
 /* =========================
 404
 ========================= */
+
+
+// India trending chart — server-side RSS proxy
+let indiaChartCache = null;
+let indiaChartUpdated = 0;
+
+app.get("/api/trending", async (req, res) => {
+  const now = Date.now();
+
+  if (indiaChartCache && now - indiaChartUpdated < 1800000) {
+    return res.json(indiaChartCache);
+  }
+
+  try {
+    const url =
+      "https://itunes.apple.com/in/rss/topsongs/limit=100/json";
+
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(15000)
+    });
+
+    if (!response.ok) {
+      throw new Error("Upstream HTTP " + response.status);
+    }
+
+    const payload = await response.json();
+    const entries = payload?.feed?.entry || [];
+
+    const results = entries.map(song => {
+      const links = Array.isArray(song.link)
+        ? song.link
+        : [song.link];
+
+      const link = links.find(
+        x => x?.attributes?.href?.startsWith("https://")
+      );
+
+      return {
+        name: song["im:name"]?.label || "Unknown song",
+        artistName: song["im:artist"]?.label || "Unknown artist",
+        artwork: {
+          url: (song["im:image"] || []).slice(-1)[0]?.label || ""
+        },
+        url: link?.attributes?.href || ""
+      };
+    });
+
+    if (!results.length) {
+      throw new Error("Chart returned no songs");
+    }
+
+    indiaChartCache = {feed: {results}};
+    indiaChartUpdated = now;
+
+    res.json(indiaChartCache);
+  } catch (error) {
+    console.error("Trending chart error:", error.message);
+
+    if (indiaChartCache) {
+      return res.json(indiaChartCache);
+    }
+
+    res.status(502).json({
+      success: false,
+      error: "Trending chart temporarily unavailable"
+    });
+  }
+});
 
 app.use((req, res) => {
 

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Madineni JavaScript Audio Test</title>
+</head>
+<body style="font-family:system-ui;padding:24px">
+<h2>JavaScript Audio Test</h2>
+<p>Ee Priyuraliki Pellei</p>
+<button id="play" style="padding:14px">Play / Pause</button>
+<p id="status">Ready</p>
+<script>
+const audio = new Audio();
+audio.preload = "auto";
+audio.src = "/music/Amara%20Prema/Ee%20Priyuraliki%20Pellei.mp3";
+
+const status = document.getElementById("status");
+
+document.getElementById("play").onclick = async () => {
+  if (!audio.paused) {
+    audio.pause();
+    return;
+  }
+  try {
+    await audio.play();
+  } catch (e) {
+    status.textContent = "Playback error: " + e.message;
+  }
+};
+
+["loadstart","waiting","stalled","canplay","playing","pause","error"].forEach(event => {
+  audio.addEventListener(event, () => {
+    status.textContent =
+      "Event: " + event +
+      " | Time: " + audio.currentTime.toFixed(1) + "s" +
+      " | ReadyState: " + audio.readyState;
+  });
+});
+</script>
+</body>
+</html>

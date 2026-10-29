@@ -3,26 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AuraSound Music</title>
+<title>Madineni Music</title>
 <style>
 :root{
-  --bg:#060817;--panel:rgba(18,19,39,.72);--panel2:rgba(28,21,48,.78);
-  --line:rgba(255,255,255,.11);--text:#f7f4ff;--muted:#9794aa;
-  --purple:#9b4dff;--cyan:#19d7ff;--pink:#ff3f9e;--green:#20df78;
+  --bg:#080808;--panel:#171717;--panel2:#202020;
+  --line:rgba(255,255,255,.10);--text:#f8f8f8;--muted:#a3a3a3;
+  --purple:#d77a43;--cyan:#f3a061;--pink:#ba5d39;--green:#d77a43;
 }
-*{box-sizing:border-box} body{margin:0;background:#020512;color:var(--text);font:14px Inter,system-ui,sans-serif;min-height:100vh}
-body:before{content:"";position:fixed;inset:-20%;background:radial-gradient(circle at 25% 10%,#6824a855,transparent 28%),radial-gradient(circle at 85% 12%,#00bcd433,transparent 25%),radial-gradient(circle at 50% 100%,#b51a7a22,transparent 30%);filter:blur(35px);pointer-events:none}
+*{box-sizing:border-box} body{margin:0;background:#050505;color:var(--text);font:14px Inter,system-ui,sans-serif;min-height:100vh}
+body:before{content:"";position:fixed;inset:-20%;background:radial-gradient(circle at 25% 10%,#b45b3220,transparent 28%),radial-gradient(circle at 85% 12%,#c7783420,transparent 25%);filter:blur(35px);pointer-events:none}
 button,input{font:inherit} button{color:inherit;border:0;cursor:pointer}
 .app{position:relative;z-index:1;display:grid;grid-template-columns:220px 1fr;min-height:100vh;max-width:1500px;margin:auto}
 .sidebar{padding:24px 16px;border-right:1px solid var(--line);background:rgba(4,6,18,.72);backdrop-filter:blur(25px)}
 .brand{display:flex;align-items:center;gap:10px;font-weight:900;font-size:18px;margin:0 8px 30px}
-.logo{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;background:linear-gradient(135deg,var(--purple),var(--cyan));box-shadow:0 0 24px #8d40ff66}
+.logo{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#fa8b48,#c55031);box-shadow:0 0 24px #d06b3c44}
 .nav{display:grid;gap:7px}.nav button{display:flex;align-items:center;gap:14px;padding:13px 12px;border-radius:14px;background:transparent;color:var(--muted);text-align:left;font-size:15px}.nav button span{font-size:22px;width:28px;text-align:center;line-height:1}.nav button.active,.nav button:hover{background:#8d40ff25;color:white;border:1px solid #9b4dff55}.side-title{font-size:10px;text-transform:uppercase;color:#66647a;letter-spacing:1.5px;margin:28px 8px 8px}
 .main{min-width:0;padding-bottom:90px}.top{height:70px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;border-bottom:1px solid var(--line);background:#05071699;backdrop-filter:blur(25px);position:sticky;top:0;z-index:10}
 .search{width:min(420px,45vw);background:#fff8;border:1px solid var(--line);border-radius:14px;padding:10px 14px;color:white;outline:0}.search:focus{border-color:#9b4dff88;box-shadow:0 0 20px #8d40ff22}
 .top-actions{display:flex;gap:8px}.pill{padding:9px 13px;border-radius:999px;background:#ffffff08;border:1px solid var(--line);color:var(--muted)}.pill.active{background:#8d40ff30;border-color:#9b4dff88;color:white}
 .content{padding:28px;max-width:1250px;margin:auto}.screen{display:none}.screen.active{display:block}
-.hero{display:grid;grid-template-columns:minmax(280px,380px) 1fr;gap:32px;align-items:center;padding:30px;border:1px solid var(--line);border-radius:28px;background:linear-gradient(135deg,#8d40ff16,#07182a77);box-shadow:0 20px 80px #0008}
+.hero{display:grid;grid-template-columns:minmax(280px,380px) 1fr;gap:32px;align-items:center;padding:30px;border:1px solid var(--line);border-radius:28px;background:linear-gradient(135deg,#a8523019,#17120e);box-shadow:0 20px 80px #0008}
 .cover{aspect-ratio:1;border-radius:24px;overflow:hidden;background:linear-gradient(135deg,#8d40ff,#18d8ff);box-shadow:0 0 55px #8d40ff44}.cover img{width:100%;height:100%;object-fit:cover}.cover-placeholder{width:100%;height:100%;display:grid;place-items:center;font-size:70px}
 .eyebrow{color:#aeb2cc;font-size:11px;letter-spacing:1.5px;text-transform:uppercase}.title{font-size:clamp(34px,5vw,64px);line-height:.98;margin:10px 0}.artist{font-size:18px;color:#bdb9cc}.meta{color:var(--muted);margin-top:7px}
 .wave{height:90px;display:flex;align-items:center;gap:3px;margin:28px 0}.bar{flex:1;min-width:2px;border-radius:5px;background:linear-gradient(#16dfff,#a64dff,#ff3d9d);box-shadow:0 0 8px #9b4dff55}
@@ -68,6 +68,90 @@ button,input{font:inherit} button{color:inherit;border:0;cursor:pointer}
 }
 .bottom span{
   font-size:22px;
+}
+
+/* Madineni Music discovery home */
+.brand{font-size:19px;color:#fff}
+.logo{font-size:18px}
+.nav button.active,.nav button:hover{background:#482a1d;color:white;border-color:#865032}
+.search:focus{border-color:#9b5a3788;box-shadow:0 0 20px #c56a3522}
+.cover{background:linear-gradient(135deg,#bd663b,#352018);box-shadow:0 0 40px #9a542b33}
+.bar{background:linear-gradient(#f5a064,#d77a43,#8c3f2d);box-shadow:0 0 8px #d77a4355}
+.range{accent-color:#d77a43}
+.main{padding-bottom:150px}
+.category-strip{display:flex;gap:10px;overflow:auto;margin:0 0 26px;padding:2px 0 8px;scrollbar-width:none}
+.category-strip::-webkit-scrollbar{display:none}
+.category-chip{flex:0 0 auto;padding:10px 17px;border:1px solid transparent;border-radius:11px;background:#1b1b1b;color:#f4f4f4;cursor:pointer}
+.category-chip:hover,.category-chip.selected{background:#42281d;border-color:#9b5a37;color:#fff}
+.welcome{font-size:clamp(25px,3vw,36px);margin:0 0 20px}
+.discovery-hero{position:relative;min-height:265px;display:flex;align-items:end;overflow:hidden;border:1px solid #ffffff16;border-radius:24px;padding:26px;background:#211511;margin-bottom:28px}
+.discovery-hero-art{position:absolute;inset:0;background:linear-gradient(90deg,#090909df 0%,#120d0bb0 42%,transparent 100%),linear-gradient(0deg,#090909cc,transparent 75%),radial-gradient(circle at 75% 22%,#d78043,#492419 34%,#131110 74%)}
+.discovery-hero-copy{position:relative;max-width:560px}
+.discovery-hero .eyebrow{color:#f2a36b}
+.discovery-hero h2{font-size:clamp(32px,5vw,54px);margin:9px 0 5px;line-height:1}
+.discovery-hero p{color:#d3cfcc;margin:0 0 17px;font-size:15px}
+.discovery-play{width:48px;height:48px;border-radius:50%;background:#dc7943;color:white;font-size:19px}
+.discovery-section{margin-top:30px}
+.discovery-section .sectionhead{margin-bottom:12px}
+.discovery-section .sectionhead h2{font-size:23px;margin:0}
+.discovery-section .sectionhead small{color:var(--muted)}
+.discovery-row{display:grid;grid-template-columns:50px 54px minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:8px;border-radius:13px}
+.discovery-row:hover{background:#ffffff08}
+.discovery-rank{font-size:13px;color:#d48755;text-align:center}
+.discovery-row .thumb{width:54px;height:54px;margin:0;border-radius:9px;overflow:hidden}
+.discovery-row .thumb img{border-radius:9px}
+.discovery-row-title{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.discovery-row-meta{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:4px}
+.discovery-row button{background:transparent;color:#c7c3c0}
+.discovery-see{border:0;background:none;color:#e49561;font-weight:700;cursor:pointer}
+.discovery-albums{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+.mini-player{position:fixed;z-index:19;left:238px;right:18px;bottom:12px;min-height:72px;display:flex;align-items:center;gap:13px;padding:10px 14px;background:#202020f2;border:1px solid #ffffff20;border-radius:15px;backdrop-filter:blur(18px);box-shadow:0 10px 35px #0009}
+.mini-player .thumb{width:48px;height:48px;margin:0;flex:0 0 48px;border-radius:7px;overflow:hidden}
+.mini-meta{min-width:0;flex:1}.mini-meta b,.mini-meta small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mini-meta small{color:var(--muted);margin-top:4px}
+.mini-player button{background:none;color:#fff;font-size:20px;padding:8px}
+.mini-player .mini-cast{display:none}
+.mini-progress{position:absolute;bottom:-1px;left:0;height:2px;width:0;background:#d77a43;transition:width .2s}
+.trending-source{font-size:12px;color:var(--muted)}
+.trending-status{padding:12px;color:var(--muted)}
+.top-brand{display:none;align-items:center;gap:8px;font-weight:800;white-space:nowrap}
+.top-brand .logo{width:30px;height:30px;font-size:15px}
+
+@media(max-width:800px){
+  .main{padding-bottom:162px}
+  .content{padding-top:20px}
+  .top-brand{display:flex;flex:1;font-size:16px}
+  .top{gap:9px}
+  .top-actions .pill{display:none}
+  .top-actions{gap:6px}
+  .icon-btn{width:40px;height:40px}
+  .mini-player{left:10px;right:10px;bottom:78px;min-height:62px;padding:8px 11px;border-radius:12px}
+  .mini-player .thumb{width:44px;height:44px;flex-basis:44px}
+  .mini-player .mini-cast{display:inline-block}
+  .discovery-hero{min-height:230px;padding:20px}
+  .discovery-row{grid-template-columns:25px 48px minmax(0,1fr) auto;gap:9px}
+  .discovery-row .thumb{width:48px;height:48px}
+  .discovery-row .availability{display:none}
+  .discovery-albums{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .category-strip{margin-bottom:20px}
+  .welcome{margin-bottom:15px}
+  .bottom{bottom:8px}
+  .bottom button[data-mobile="0"]{display:none}
+  .bottom button[data-mobile="1"]{display:grid}
+  .bottom{height:64px}
+  .bottom button{font-size:10px}
+  .bottom span{font-size:20px}
+}
+
+@media(max-width:460px){
+  .discovery-hero{min-height:210px}
+  .discovery-section .sectionhead h2{font-size:20px}
+  .discovery-row-title{font-size:13px}
+  .discovery-row-meta{font-size:11px}
+  .discovery-rank{font-size:11px}
+  .mini-player .mini-cast{display:none}
+  .discovery-albums{gap:10px}
+  .album.card{padding:9px}
 }
 
 @media(max-width:800px){
@@ -134,7 +218,7 @@ button,input{font:inherit} button{color:inherit;border:0;cursor:pointer}
 <body>
 <div class="app">
 <aside class="sidebar">
-  <div class="brand"><div class="logo">♫</div>AuraSound</div>
+  <div class="brand"><div class="logo">♫</div>Madineni Music</div>
   <div class="nav" id="sideNav"></div>
   <div class="side-title">Library</div>
   <div class="nav">
@@ -145,18 +229,28 @@ button,input{font:inherit} button{color:inherit;border:0;cursor:pointer}
 
 <main class="main">
 <header class="top">
+  <div class="top-brand"><div class="logo">♫</div>Madineni Music</div>
   <div class="search-wrap collapsed" id="searchWrap">
     <button class="search-toggle" onclick="toggleSearch()" aria-label="Search" title="Search">🔍</button>
     <input id="search" class="search" placeholder="Search songs, artists, albums..." oninput="searchAll(this.value)">
   </div>
   <div class="top-actions">
     <button class="icon-btn" onclick="openScreen('dsp')" aria-label="Audio settings" title="Audio settings">⚙️</button>
+    <button class="pill" id="topLyricsPill" onclick="document.getElementById('lyricsTab')?.click()">Lyrics</button>
     <button class="pill active" onclick="openScreen('player')">Now Playing</button>
   </div>
 </header>
 
 <div class="content">
-<section id="player" class="screen active">
+
+
+<section id="trending" class="screen">
+  <div class="sectionhead"><div><small class="trending-source">Apple Music RSS · India Top 100</small><h1 class="title">Trending songs</h1></div><button class="discovery-see" onclick="loadTrending(true)">Refresh</button></div>
+  <p class="muted">Live chart suggestions. Songs in your server library play here; others open in Apple Music.</p>
+  <div id="trendingList" class="list"><div class="trending-status">Loading current chart…</div></div>
+</section>
+
+<section id="player" class="screen">
   <div class="hero">
     <div class="cover" id="cover"><div class="cover-placeholder">♫</div></div>
     <div>
@@ -173,6 +267,7 @@ button,input{font:inherit} button{color:inherit;border:0;cursor:pointer}
         <button class="control play" id="play" onclick="togglePlay()" title="Play / Pause" aria-label="Play / Pause">▶</button>
         <button class="control" onclick="next()" title="Next" aria-label="Next">⏭</button>
         <button class="control" id="repeat" onclick="toggleLoop()" title="Repeat" aria-label="Repeat" aria-pressed="false">🔁</button>
+        <button class="control" id="lyricsTab" title="Lyrics" aria-label="Lyrics" aria-pressed="false">🎤</button>
       </div>
       <div class="quick">
         <div class="card row"><span>Smart Crossfade</span><button id="cross" class="switch on" onclick="this.classList.toggle('on')"><i></i></button></div>
@@ -397,16 +492,23 @@ button,input{font:inherit} button{color:inherit;border:0;cursor:pointer}
 </div>
 
 <nav class="bottom" id="bottomNav"></nav>
+<div class="mini-player" id="miniPlayer">
+  <div class="thumb" id="miniCover">♫</div>
+  <div class="mini-meta" onclick="openScreen('player')"><b id="miniTitle">Nothing is playing</b><small id="miniArtist">Choose a song to start listening</small></div>
+  <button class="mini-cast" aria-label="Audio output" title="Audio output">◉</button>
+  <button id="miniToggle" onclick="togglePlay()" aria-label="Play">▶</button>
+  <div class="mini-progress" id="miniProgress"></div>
+</div>
 <audio id="audioPlayer" preload="metadata"></audio>
 
 <script>
 const audio=document.getElementById('audioPlayer');
-const state={songs:[],albums:[],artists:[],playlists:[],favorites:JSON.parse(localStorage.getItem('favorites')||'[]'),index:-1,shuffle:false,loop:false};
-const nav=[['player','⌂','Home'],['songs','♫','Songs'],['albums','▦','Albums'],['artists','♙','Artists'],['favorites','♥','Favorites'],['playlists','☷','Playlists']];
+const state={songs:[],albums:[],artists:[],playlists:[],trending:[],favorites:JSON.parse(localStorage.getItem('favorites')||'[]'),index:-1,shuffle:false,loop:false};
+const nav=[['home','⌂','Home',1],['trending','↗','Trending',1],['songs','♫','Songs',1],['albums','▦','Albums',1],['artists','♙','Artists',1],['favorites','♥','Favorites',0],['playlists','☷','Playlists',0]];
 const API=window.MUSIC_API_BASE||'';
 function api(path){return fetch(API+path).then(r=>{if(!r.ok)throw Error(r.status);return r.json()})}
 function openScreen(id){document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));document.getElementById(id)?.classList.add('active');document.querySelectorAll('.nav button,.bottom button').forEach(b=>b.classList.toggle('active',b.dataset.screen===id))}
-function setupNav(){const html=nav.map(([id,icon,name])=>`<button data-screen="${id}" onclick="openScreen('${id}')"><span>${icon}</span>${name}</button>`).join('');document.getElementById('sideNav').innerHTML=html;document.getElementById('bottomNav').innerHTML=html}
+function setupNav(){const make=items=>items.map(([id,icon,name,mobile])=>`<button data-screen="${id}" data-mobile="${mobile}" onclick="openScreen('${id}')"><span>${icon}</span>${name}</button>`).join('');document.getElementById('sideNav').innerHTML=make(nav);document.getElementById('bottomNav').innerHTML=make(nav.filter(item=>item[3]))}
 function img(src){return src?`<img src="${src}" alt="">`:''}
 function songId(s){return s.id??s.song_id??s._id}
 function songTitle(s){return s.title??s.name??'Untitled'}
@@ -416,6 +518,7 @@ async function playSong(i){
  if(!state.songs[i])return;
  state.index=i;
  const s=state.songs[i];
+ renderNow();
  const url=songUrl(s);
  console.log('Playing:',url);
  document.getElementById('nowAlbum').textContent='Loading audio...';
@@ -803,18 +906,66 @@ function loadMasterVolume(){
 }
 
 function seek(v){if(audio.duration)audio.currentTime=(v/100)*audio.duration}
-audio.addEventListener('play',()=>document.getElementById('play').textContent='Ⅱ')
-audio.addEventListener('pause',()=>document.getElementById('play').textContent='▶')
-audio.addEventListener('timeupdate',()=>{if(audio.duration){document.getElementById('seek').value=audio.currentTime/audio.duration*100;document.getElementById('current').textContent=fmt(audio.currentTime);document.getElementById('duration').textContent=fmt(audio.duration)}})
+audio.addEventListener('play',()=>{document.getElementById('play').textContent='Ⅱ';document.getElementById('miniToggle').textContent='Ⅱ';document.getElementById('miniToggle').setAttribute('aria-label','Pause')})
+audio.addEventListener('pause',()=>{document.getElementById('play').textContent='▶';document.getElementById('miniToggle').textContent='▶';document.getElementById('miniToggle').setAttribute('aria-label','Play')})
+audio.addEventListener('timeupdate',()=>{if(audio.duration){document.getElementById('seek').value=audio.currentTime/audio.duration*100;document.getElementById('current').textContent=fmt(audio.currentTime);document.getElementById('duration').textContent=fmt(audio.duration);document.getElementById('miniProgress').style.width=(audio.currentTime/audio.duration*100)+'%'}})
 audio.addEventListener('ended',()=>state.loop?audio.play():next())
 function fmt(n){n=Math.floor(n||0);return Math.floor(n/60)+':'+String(n%60).padStart(2,'0')}
-function renderNow(){const s=state.songs[state.index];if(!s)return;document.getElementById('nowTitle').textContent=songTitle(s);document.getElementById('nowArtist').textContent=artistName(s);document.getElementById('nowAlbum').textContent=s.album||s.album_name||'Now Playing';const c=document.getElementById('cover');const art=s.cover_art||s.cover||s.artwork||s.image;if(art)c.innerHTML=img(art);else c.innerHTML='<div class="cover-placeholder">♫</div>'}
+function renderNow(){const s=state.songs[state.index];if(!s)return;document.getElementById('nowTitle').textContent=songTitle(s);document.getElementById('nowArtist').textContent=artistName(s);document.getElementById('nowAlbum').textContent=s.album||s.album_name||'Now Playing';const c=document.getElementById('cover');const art=s.cover_art||s.cover||s.artwork||s.image;if(art)c.innerHTML=img(art);else c.innerHTML='<div class="cover-placeholder">♫</div>';document.getElementById('miniTitle').textContent=songTitle(s);document.getElementById('miniArtist').textContent=artistName(s);document.getElementById('miniCover').innerHTML=img(art)||'♫'}
 function renderSongs(list=state.songs){document.getElementById('songList').innerHTML=list.map((s,i)=>`<div class="song"><div class="thumb">${img(s.cover_art||s.cover||s.image)}</div><div><b>${esc(songTitle(s))}</b><div class="muted">${esc(artistName(s))}</div></div><button onclick="playSong(${state.songs.indexOf(s)})">▶</button></div>`).join('')||'<div class="card">No songs found.</div>'}
 function renderAlbums(){document.getElementById('albumGrid').innerHTML=state.albums.map(a=>`<div class="album card"><div class="thumb">${img(a.cover_art||a.cover||a.image)}</div><b>${esc(a.title||a.name||'Album')}</b><span class="muted">${esc(a.artist||a.artist_name||'')}</span></div>`).join('')||'<div class="card">No albums found.</div>'}
 function renderArtists(){document.getElementById('artistList').innerHTML=state.artists.map(a=>`<div class="song card"><div class="thumb">${img(a.image||a.avatar)}</div><div><b>${esc(a.name||a.artist||'Artist')}</b><div class="muted">${a.song_count??''} songs</div></div></div>`).join('')||'<div class="card">No artists found.</div>'}
 function renderFavorites(){const list=state.songs.filter(s=>state.favorites.includes(songId(s)));document.getElementById('favList').innerHTML=list.map(s=>`<div class="song card"><div class="thumb">${img(s.cover_art||s.cover||s.image)}</div><div><b>${esc(songTitle(s))}</b><div class="muted">${esc(artistName(s))}</div></div><button onclick="playSong(${state.songs.indexOf(s)})">▶</button></div>`).join('')||'<div class="card">No favorites yet.</div>'}
 function renderPlaylists(){document.getElementById('playlistGrid').innerHTML=state.playlists.map(p=>`<div class="card"><b>${esc(p.name||p.title||'Playlist')}</b><div class="muted">${p.song_count??p.songs?.length??0} songs</div></div>`).join('')||'<div class="card">No playlists found.</div>'}
 function renderRecent(){document.getElementById('recent').innerHTML=state.songs.slice(0,6).map(s=>`<div class="album card" onclick="playSong(${state.songs.indexOf(s)})"><div class="thumb">${img(s.cover_art||s.cover||s.image)}</div><b>${esc(songTitle(s))}</b><span class="muted">${esc(artistName(s))}</span></div>`).join('')}
+function playHomeMix(){if(!state.songs.length){openScreen('songs');return}state.shuffle=true;playSong(Math.floor(Math.random()*state.songs.length))}
+function homeCategory(name,button){document.querySelectorAll('.category-chip').forEach(x=>x.classList.remove('selected'));button.classList.add('selected');openScreen('home')}
+function chartKey(value){return String(value||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\([^)]*from[^)]*\)/gi,'').replace(/\s+from\s+.*/i,'').replace(/[^a-z0-9]+/g,' ').trim()}
+function matchChartSong(item){
+ const title=chartKey(item.name);
+ const candidates=state.songs.filter(s=>chartKey(songTitle(s))===title);
+ const artist=chartKey(item.artistName);
+ const exact=candidates.filter(s=>chartKey(artistName(s))===artist);
+ if(exact.length===1)return exact[0];
+ if(exact.length>1)return null;
+ const tokens=artist.split(' ').filter(x=>x.length>=4);
+ const byArtist=candidates.filter(s=>tokens.some(t=>chartKey(artistName(s)).split(' ').includes(t)));
+ if(candidates.length===1&&tokens.length===0)return candidates[0];
+ return byArtist.length===1?byArtist[0]:null;
+}
+function chartArtwork(item){const value=item.artworkUrl100||'';try{const u=new URL(value);return u.protocol==='https:'&&u.hostname.endsWith('mzstatic.com')?u.href:''}catch{return ''}}
+function chartRow(item,index){
+ const match=matchChartSong(item),art=chartArtwork(item),title=esc(item.name),artist=esc(item.artistName),id=esc(item.id);
+ const cover=art?`<img src="${esc(art)}" alt="">`:'♫';
+ const availability=match?'In your library':'Open in Apple Music';
+ return `<div class="discovery-row"><span class="discovery-rank">${index+1}</span><div class="thumb">${cover}</div><div><div class="discovery-row-title">${title}</div><div class="discovery-row-meta">${artist}</div></div><span class="availability muted">${availability}</span><button onclick="playChart('${id}')" aria-label="${match?'Play':'Open'} ${title}">${match?'▶':'↗'}</button></div>`;
+}
+function renderChartRows(container,items){container.innerHTML=items.length?items.map(chartRow).join(''):'<div class="trending-status">No chart results yet. Refresh to try again.</div>'}
+function renderHome(){
+ const meta=document.getElementById('homeMixMeta');if(meta)meta.textContent=`${state.songs.length.toLocaleString()} songs · Your personal mix`;
+ const heroArt=document.querySelector('.discovery-hero-art'),lead=state.songs[0],leadArt=lead&&(lead.cover_art||lead.cover||lead.artwork||lead.image);
+ if(heroArt&&leadArt){try{const artURL=new URL(leadArt,location.href);if(['https:','http:'].includes(artURL.protocol)){heroArt.style.backgroundImage=`linear-gradient(90deg,#090909e8 0%,#120d0bb8 45%,transparent 100%),linear-gradient(0deg,#090909c9,transparent 75%),url("${artURL.href}")`;heroArt.style.backgroundSize='cover';heroArt.style.backgroundPosition='center'}}catch{}}
+ const trends=document.getElementById('homeTrending');if(trends)renderChartRows(trends,state.trending.slice(0,3));
+ const all=document.getElementById('trendingList');if(all)renderChartRows(all,state.trending);
+ const quick=document.getElementById('homeQuickPicks');if(quick)quick.innerHTML=state.songs.slice(0,4).map((s)=>{const i=state.songs.indexOf(s);return `<div class="discovery-row"><div class="thumb">${img(s.cover_art||s.cover||s.image)}</div><div><div class="discovery-row-title">${esc(songTitle(s))}</div><div class="discovery-row-meta">${esc(artistName(s))}</div></div><span></span><button onclick="playSong(${i})" aria-label="Play ${esc(songTitle(s))}">▶</button></div>`}).join('')||'<div class="trending-status">Your quick picks appear when your library loads.</div>';
+ const albums=document.getElementById('homeAlbums');if(albums)albums.innerHTML=state.albums.slice(0,4).map(a=>`<div class="album card" onclick="openScreen('albums')"><div class="thumb">${img(a.cover_art||a.cover||a.image)}</div><b>${esc(a.title||a.name||'Album')}</b><span class="muted">${esc(a.artist||a.artist_name||'')}</span></div>`).join('')||'<div class="trending-status">Albums from your library will appear here.</div>';
+ const playlists=document.getElementById('homePlaylists');if(playlists)playlists.innerHTML=state.playlists.slice(0,4).map(p=>`<div class="card" onclick="openScreen('playlists')"><b>${esc(p.name||p.title||'Playlist')}</b><div class="muted">${p.song_count??p.songs?.length??0} songs</div></div>`).join('')||'<div class="trending-status">Create playlists in your library to build a mood collection.</div>';
+}
+async function loadTrending(force=false){
+ const status='<div class="trending-status">Loading current chart…</div>';
+ const home=document.getElementById('homeTrending'),all=document.getElementById('trendingList');if(home&&(!state.trending.length||force))home.innerHTML=status;if(all&&(!state.trending.length||force))all.innerHTML=status;
+ try{
+  const response=await fetch('https://rss.marketingtools.apple.com/api/v2/in/music/most-played/100/songs.json',{cache:force?'reload':'default'});
+  if(!response.ok)throw Error('Chart unavailable');
+  const payload=await response.json();state.trending=payload?.feed?.results||[];
+  renderHome();
+ }catch(error){
+  const message='<div class="trending-status">Could not load the internet chart. <button class="discovery-see" onclick="loadTrending(true)">Try again</button></div>';
+  if(home&&!state.trending.length)home.innerHTML=message;if(all&&!state.trending.length)all.innerHTML=message;
+  console.warn('Could not load current Apple Music chart',error);
+ }
+}
+function playChart(id){const item=state.trending.find(x=>String(x.id)===String(id));if(!item)return;const match=matchChartSong(item);if(match){playSong(state.songs.indexOf(match));return}try{const url=new URL(item.url);if(url.protocol==='https:'&&url.hostname==='music.apple.com')window.open(url.href,'_blank','noopener')}catch(error){console.warn('Invalid chart URL',error)}}
 function toggleSearch(){
  const wrap=document.getElementById('searchWrap');
  wrap.classList.toggle('collapsed');
@@ -848,9 +999,19 @@ async function load(){
    ['/api/songs','songs'],['/api/albums','albums'],['/api/artists','artists'],['/api/playlists','playlists']
  ];
  for(const [url,key] of endpoints){try{const r=await api(url);state[key]=Array.isArray(r)?r:(r.data||r[key]||[])}catch(e){console.warn('Could not load',url,e)}}
- renderSongs();renderAlbums();renderArtists();renderFavorites();renderPlaylists();renderRecent();
+ renderSongs();renderAlbums();renderArtists();renderFavorites();renderPlaylists();renderRecent();renderHome();loadTrending();
 }
 load();
 </script>
+<!-- MADINENI LYRICS START -->
+<script data-madineni-lyrics-loader="1">
+(() => {
+  const base = (typeof API_BASE === "string" ? API_BASE : typeof API === "string" ? API : window.MUSIC_API_BASE || "").replace(/\/$/, "");
+  const script = document.createElement("script");
+  script.src = base + "/api/lyrics/player.js";
+  document.head.append(script);
+})();
+</script>
+<!-- MADINENI LYRICS END -->
 </body>
 </html>
