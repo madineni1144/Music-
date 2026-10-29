@@ -337,11 +337,15 @@ def create_detail_sheet(
             ):
                 value = value.isoformat()
 
-            sheet.cell(
+            cell = sheet.cell(
                 row=row_number,
                 column=column_number,
                 value=value,
             )
+
+            # Spreadsheet apps would run "=..." text as a formula.
+            if isinstance(value, str) and value.startswith("="):
+                cell.data_type = "s"
 
     sheet.freeze_panes = "A2"
     sheet.auto_filter.ref = sheet.dimensions

@@ -2,6 +2,8 @@ from pathlib import Path
 
 from google_auth_oauthlib.flow import InstalledAppFlow
 
+from audio_pipeline.scripts.secure_files import write_private_text
+
 CLIENT_SECRET_FILE = Path("/home/rk/google_oauth.json")
 TOKEN_FILE = Path("/home/rk/google_drive_token.json")
 
@@ -20,8 +22,7 @@ def main():
         open_browser=False,
     )
 
-    TOKEN_FILE.write_text(credentials.to_json())
-    TOKEN_FILE.chmod(0o600)
+    write_private_text(TOKEN_FILE, credentials.to_json())
 
     print(f"Google Drive authentication successful.")
     print(f"Token saved securely to: {TOKEN_FILE}")

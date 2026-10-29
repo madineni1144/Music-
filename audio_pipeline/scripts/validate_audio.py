@@ -1,6 +1,7 @@
 from pathlib import Path
 import argparse
 import json
+import shutil
 import subprocess
 
 from audio_pipeline.scripts.db import (
@@ -170,6 +171,19 @@ def validate_item(item):
 
 def main():
     args = parse_arguments()
+
+    # A missing tool is an infrastructure failure. Stop the run instead of
+    # marking every song as failed.
+    missing_tools = [
+        tool for tool in ("ffprobe", "ffmpeg")
+        if shutil.which(tool) is None
+    ]
+
+    if missing_tools:
+        raise RuntimeError(
+            "Required audio tools not installed: "
+            + ", ".join(missing_tools)
+        )
 
     if args.job_id is not None:
         job = get_import_job(args.job_id)

@@ -86,6 +86,11 @@ def test_playback(url):
             f"Backend connection failed: {error.reason}"
         ) from error
 
+    except (TimeoutError, ConnectionError) as error:
+        raise ConnectionError(
+            f"Backend read timed out or dropped: {error}"
+        ) from error
+
     if status != 206:
         raise RuntimeError(f"Expected HTTP 206, received {status}")
 

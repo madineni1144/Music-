@@ -20,6 +20,7 @@ from audio_pipeline.scripts.db import (
     find_duplicate_by_sha256,
     get_connection,
 )
+from audio_pipeline.scripts.secure_files import write_private_text
 
 TOKEN_FILE = Path(
     os.getenv(
@@ -71,11 +72,7 @@ def get_drive_service():
 
         credentials.refresh(Request())
 
-        TOKEN_FILE.write_text(
-            credentials.to_json(),
-            encoding="utf-8",
-        )
-        TOKEN_FILE.chmod(0o600)
+        write_private_text(TOKEN_FILE, credentials.to_json())
 
     if not credentials.valid:
         raise RuntimeError(
@@ -88,6 +85,14 @@ def get_drive_service():
         credentials=credentials,
         cache_discovery=False,
     )
+
+
+def is_audio_item(item):
+    # Drive often labels MP3 uploads as application/octet-stream.
+    if item.get("mimeType", "").startswith("audio/"):
+        return True
+
+    return item.get("name", "").lower().endswith(".mp3")
 
 
 def list_audio_files(drive):
@@ -109,9 +114,7 @@ def list_audio_files(drive):
         ).execute()
 
         for item in response.get("files", []):
-            if item.get(
-                "mimeType", ""
-            ).startswith("audio/"):
+            if is_audio_item(item):
                 results.append(item)
 
         page_token = response.get("nextPageToken")

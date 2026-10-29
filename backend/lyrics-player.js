@@ -9,7 +9,10 @@
     const base = (typeof API_BASE === 'string' ? API_BASE : typeof API === 'string' ? API : window.MUSIC_API_BASE || '').replace(/\/$/, '');
     const getSong = () => {
       if (typeof data !== 'undefined' && Array.isArray(data) && typeof current !== 'undefined') return data[current] || null;
-      if (typeof state !== 'undefined' && Array.isArray(state.songs)) return state.songs[state.index] || null;
+      if (typeof state !== 'undefined' && Array.isArray(state.songs)) {
+        const queue = Array.isArray(state.queue) && state.queue.length ? state.queue : state.songs;
+        return queue[state.index] || null;
+      }
       return null;
     };
     const style = document.createElement('style');

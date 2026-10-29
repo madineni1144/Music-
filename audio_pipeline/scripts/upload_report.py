@@ -8,6 +8,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
 from audio_pipeline.scripts.db import get_import_job
+from audio_pipeline.scripts.secure_files import write_private_text
 
 
 TOKEN_FILE = Path(
@@ -81,13 +82,7 @@ def get_drive_service():
             Request()
         )
 
-        TOKEN_FILE.write_text(
-            credentials.to_json()
-        )
-
-        TOKEN_FILE.chmod(
-            0o600
-        )
+        write_private_text(TOKEN_FILE, credentials.to_json())
 
         print(
             "Google access token refreshed "

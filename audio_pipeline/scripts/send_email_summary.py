@@ -195,20 +195,28 @@ Madineni Music Pipeline
         filename=report_path.name,
     )
 
-    with smtplib.SMTP_SSL(
-        SMTP_HOST,
-        SMTP_PORT,
-        timeout=30,
-    ) as smtp:
-        smtp.login(address, password)
-        smtp.send_message(message)
-
+    # Claim the job before sending, so a retry after a crash cannot send
+    # the same email twice. A failed send releases the claim below.
+    # If the process dies mid-send, delete the marker file to resend.
     if marker is not None:
         with marker.open("x") as file:
             file.write(
                 f"job_id={job_id}\n"
                 f"report={report_path.name}\n"
             )
+
+    try:
+        with smtplib.SMTP_SSL(
+            SMTP_HOST,
+            SMTP_PORT,
+            timeout=30,
+        ) as smtp:
+            smtp.login(address, password)
+            smtp.send_message(message)
+    except Exception:
+        if marker is not None:
+            marker.unlink(missing_ok=True)
+        raise
 
     print("=" * 70)
     print("EMAIL SUMMARY")
