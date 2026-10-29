@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Madineni Audio Test</title>
+</head>
+<body style="font-family:system-ui;padding:24px">
+<h2>Madineni Music — iPhone Audio Test</h2>
+<p>Test song: Ee Priyuraliki Pellei</p>
+<audio controls preload="metadata" style="width:100%"
+src="/music/Amara%20Prema/Ee%20Priyuraliki%20Pellei.mp3">
+</audio>
+<p id="status">Press Play to test.</p>
+<script>
+const audio=document.querySelector("audio");
+["loadstart","waiting","stalled","canplay","playing","pause","error"].forEach(event=>{
+  audio.addEventListener(event,()=>{
+    document.getElementById("status").textContent=
+      "Last audio event: "+event+
+      " | Position: "+audio.currentTime.toFixed(1)+"s";
+  });
+});
+</script>
+</body>
+</html>

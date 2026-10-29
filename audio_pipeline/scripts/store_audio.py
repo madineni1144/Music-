@@ -1,310 +1,221 @@
-from pathlib import Path
+import argparse
 import hashlib
+import os
 import re
 import shutil
+import uuid
+from pathlib import Path
 
-from audio_pipeline.scripts.db import get_connection
-
+from audio_pipeline.scripts.db import (
+    get_connection,
+    get_import_job,
+    mark_import_item_failed,
+)
 
 MUSIC_ROOT = Path("/opt/musicapp/music/Songs")
 
 
-def safe_path_name(value):
-    """
-    Convert metadata into a safe Linux folder/file name while
-    keeping normal spaces and readable names.
-    """
+def safe_name(value):
     if value is None:
         return None
-
-    cleaned = value.strip()
-
-    # Prevent path separators and null characters.
-    cleaned = re.sub(r'[\/\0]', "-", cleaned)
-
-    # Remove control characters.
-    cleaned = "".join(
-        character
-        for character in cleaned
-        if ord(character) >= 32
-    )
-
-    # Collapse repeated whitespace.
-    cleaned = re.sub(r"\s+", " ", cleaned)
-
-    # Avoid trailing dots/spaces.
-    cleaned = cleaned.strip(" .")
-
-    # Prevent special path components.
-    if cleaned in {".", ".."}:
-        return None
-
-    return cleaned or None
+    value = re.sub(r"[/\\\x00-\x1f]", "-", str(value))
+    value = re.sub(r"\s+", " ", value).strip(" .")
+    return value or None
 
 
-def calculate_sha256(file_path):
-    sha256 = hashlib.sha256()
-
-    with open(file_path, "rb") as file_handle:
-        while True:
-            chunk = file_handle.read(1024 * 1024)
-
-            if not chunk:
-                break
-
-            sha256.update(chunk)
-
-    return sha256.hexdigest()
+def sha256_file(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
-def get_items_for_storage():
+def get_items(job_id):
     connection = get_connection()
-
     try:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT
-                    id,
-                    original_filename,
-                    title,
-                    artist,
-                    album,
-                    local_file_path,
-                    sha256,
-                    status
+                SELECT id, original_filename, title, album,
+                       local_file_path, sha256, status
                 FROM import_items
-                WHERE status IN ('validated', 'warning')
-                ORDER BY album, title, id;
-                """
+                WHERE job_id = %s
+                  AND status IN ('validated', 'warning')
+                  AND song_id IS NULL
+                ORDER BY id
+                """,
+                (job_id,),
             )
-
-            rows = cursor.fetchall()
-
-        return [
-            {
-                "id": row[0],
-                "original_filename": row[1],
-                "title": row[2],
-                "artist": row[3],
-                "album": row[4],
-                "local_file_path": row[5],
-                "sha256": row[6],
-                "status": row[7],
-            }
-            for row in rows
-        ]
-
+            return cursor.fetchall()
     finally:
         connection.close()
 
 
-def build_destination(item):
-    album_name = safe_path_name(item["album"])
-    title = safe_path_name(item["title"])
-
-    if not album_name:
-        raise ValueError("Album name is empty.")
-
-    if not title:
-        raise ValueError("Song title is empty.")
-
-    if not item["local_file_path"]:
-        raise ValueError("Source file path is empty.")
-
-    source_path = Path(item["local_file_path"])
-
-    extension = source_path.suffix.lower()
-
-    if not extension:
-        extension = ".mp3"
-
-    album_folder = MUSIC_ROOT / album_name
-    destination_path = album_folder / f"{title}{extension}"
-
-    return source_path, album_folder, destination_path
-
-
-def update_final_path(item_id, destination_path):
+def update_path(item_id, path):
     connection = get_connection()
-
     try:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
                 UPDATE import_items
-                SET
-                    local_file_path = %s,
-                    updated_at = NOW()
+                SET local_file_path = %s, updated_at = NOW()
                 WHERE id = %s
-                  AND status IN ('validated', 'warning');
+                  AND status IN ('validated', 'warning')
+                  AND song_id IS NULL
                 """,
-                (
-                    str(destination_path),
-                    item_id,
-                ),
+                (str(path), item_id),
             )
-
             if cursor.rowcount != 1:
-                raise RuntimeError(
-                    f"Import item {item_id} was not updated."
-                )
-
+                raise RuntimeError("Import item path update failed")
         connection.commit()
-
     except Exception:
         connection.rollback()
         raise
-
     finally:
         connection.close()
 
 
-def copy_and_verify(item):
-    source_path, album_folder, destination_path = build_destination(item)
+def choose_destination(folder, title, suffix, expected_hash):
+    base = folder / f"{title}{suffix}"
 
-    if not source_path.exists():
-        raise FileNotFoundError(
-            f"Source file does not exist: {source_path}"
-        )
+    if not base.exists():
+        return base
 
-    if not source_path.is_file():
+    if base.is_file() and sha256_file(base) == expected_hash:
+        return base
+
+    candidate = folder / f"{title}-{expected_hash[:12]}{suffix}"
+
+    if candidate.exists():
+        if candidate.is_file() and sha256_file(candidate) == expected_hash:
+            return candidate
         raise RuntimeError(
-            f"Source path is not a file: {source_path}"
+            f"Unique destination conflict: {candidate}"
         )
 
-    if destination_path.exists():
-        raise FileExistsError(
-            f"Destination already exists: {destination_path}"
-        )
+    return candidate
 
-    expected_sha256 = item["sha256"]
 
-    if not expected_sha256:
-        raise ValueError(
-            f"Import item {item['id']} has no SHA-256 value."
-        )
+def store_item(item):
+    item_id, filename, title, album, source, expected, status = item
 
-    source_sha256 = calculate_sha256(source_path)
+    title = safe_name(title)
+    album = safe_name(album)
 
-    if source_sha256 != expected_sha256:
-        raise RuntimeError(
-            "Source SHA-256 does not match the database."
-        )
+    if not title or not album or not source or not expected:
+        raise ValueError("Missing required storage metadata")
 
-    album_folder.mkdir(
-        parents=True,
-        exist_ok=True,
+    source = Path(source)
+    expected = expected.lower()
+
+    if not re.fullmatch(r"[0-9a-f]{64}", expected):
+        raise ValueError("Invalid SHA-256 value")
+
+    suffix = source.suffix.lower() or ".mp3"
+
+    if suffix != ".mp3":
+        raise ValueError(f"Unsupported audio format: {suffix}")
+
+    folder = MUSIC_ROOT / album
+
+    # Verify source before creating or changing anything.
+    if not source.is_file():
+        raise FileNotFoundError(f"Source missing: {source}")
+
+    if sha256_file(source) != expected:
+        raise RuntimeError("Source SHA-256 mismatch")
+
+    folder.mkdir(parents=True, exist_ok=True)
+    destination = choose_destination(folder, title, suffix, expected)
+
+    if destination == source:
+        update_path(item_id, destination)
+        return destination, "already stored"
+
+    if destination.exists():
+        update_path(item_id, destination)
+        return destination, "already stored"
+
+    temporary = folder / (
+        f".{destination.name}.{uuid.uuid4().hex}.part"
     )
-
-    temporary_path = destination_path.with_name(
-        destination_path.name + ".part"
-    )
-
-    if temporary_path.exists():
-        raise FileExistsError(
-            f"Temporary destination already exists: {temporary_path}"
-        )
 
     try:
-        shutil.copy2(
-            source_path,
-            temporary_path,
-        )
+        shutil.copy2(source, temporary)
 
-        copied_sha256 = calculate_sha256(temporary_path)
+        if sha256_file(temporary) != expected:
+            raise RuntimeError("Copied audio SHA-256 mismatch")
 
-        if copied_sha256 != expected_sha256:
-            raise RuntimeError(
-                "Copied file SHA-256 verification failed."
-            )
+        # Exclusive creation prevents replacing an existing file.
+        try:
+            os.link(temporary, destination)
+        except FileExistsError:
+            if not destination.is_file() or sha256_file(destination) != expected:
+                raise RuntimeError(
+                    "Destination changed during storage; no overwrite"
+                )
 
-        temporary_path.rename(destination_path)
+        if sha256_file(destination) != expected:
+            raise RuntimeError("Final audio SHA-256 mismatch")
 
-        final_sha256 = calculate_sha256(destination_path)
+        update_path(item_id, destination)
 
-        if final_sha256 != expected_sha256:
-            raise RuntimeError(
-                "Final file SHA-256 verification failed."
-            )
+    finally:
+        temporary.unlink(missing_ok=True)
 
-        update_final_path(
-            item_id=item["id"],
-            destination_path=destination_path,
-        )
-
-    except Exception:
-        if temporary_path.exists():
-            temporary_path.unlink()
-
-        raise
-
-    return destination_path
+    return destination, "stored"
 
 
 def main():
-    items = get_items_for_storage()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--job-id", type=int, required=True)
+    args = parser.parse_args()
 
-    print(f"Found {len(items)} item(s) ready for storage.")
-    print(f"Music root: {MUSIC_ROOT}")
+    if get_import_job(args.job_id) is None:
+        raise RuntimeError(f"Import job {args.job_id} not found")
 
+    items = get_items(args.job_id)
     stored = 0
+    reused = 0
     failed = 0
-
-    planned_destinations = {}
+    unrecorded = 0
 
     for item in items:
-        print()
-        print("=" * 70)
-        print(f"Import item ID: {item['id']}")
-        print(f"Status: {item['status']}")
-        print(f"Album: {item['album']}")
-        print(f"Title: {item['title']}")
-        print(f"Artist: {item['artist']}")
-
+        item_id = item[0]
         try:
-            source_path, album_folder, destination_path = (
-                build_destination(item)
-            )
-
-            print(f"Source: {source_path}")
-            print(f"Album folder: {album_folder}")
-            print(f"Destination: {destination_path}")
-
-            destination_key = str(destination_path).casefold()
-
-            if destination_key in planned_destinations:
-                previous_id = planned_destinations[destination_key]
-
-                raise RuntimeError(
-                    "Destination collision with import item "
-                    f"{previous_id}."
-                )
-
-            planned_destinations[destination_key] = item["id"]
-
-            final_path = copy_and_verify(item)
-
-            print(f"Stored: {final_path}")
-            print("SHA-256 verification: OK")
-            print("Database final path update: OK")
-
-            stored += 1
+            path, result = store_item(item)
+            print(f"[{item_id}] {result}: {path}", flush=True)
+            if result == "stored":
+                stored += 1
+            else:
+                reused += 1
 
         except Exception as error:
-            print("Storage: FAILED")
-            print(f"Reason: {error}")
-
             failed += 1
+            reason = f"Storage failure: {error}"
+            print(f"[{item_id}] FAILED: {reason}", flush=True)
 
-    print()
-    print("=" * 70)
-    print("Audio storage stage complete.")
-    print(f"Items checked: {len(items)}")
-    print(f"Stored successfully: {stored}")
-    print(f"Failed: {failed}")
-    print()
-    print("Original staging files were NOT deleted.")
+            try:
+                mark_import_item_failed(item_id, reason)
+            except Exception as db_error:
+                unrecorded += 1
+                print(
+                    f"[{item_id}] DATABASE UPDATE FAILED: {db_error}",
+                    flush=True,
+                )
+
+    print(
+        f"Job {args.job_id}: stored={stored}, "
+        f"reused={reused}, failed={failed}, "
+        f"unrecorded={unrecorded}",
+        flush=True,
+    )
+
+    if unrecorded:
+        raise RuntimeError(
+            f"{unrecorded} storage failures could not be recorded"
+        )
 
 
 if __name__ == "__main__":

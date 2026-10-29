@@ -1,11 +1,26 @@
 from pathlib import Path
+import argparse
 import json
+import shutil
 import subprocess
 
 from audio_pipeline.scripts.db import (
     get_pending_import_items,
+    get_import_job,
     update_import_item_validation,
 )
+
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(
+        description="Validate pending audio import items."
+    )
+    parser.add_argument(
+        "--job-id",
+        type=int,
+        default=None,
+    )
+    return parser.parse_args()
 
 
 def probe_audio(file_path):
@@ -13,7 +28,8 @@ def probe_audio(file_path):
         "ffprobe",
         "-v", "error",
         "-show_entries",
-        "format=duration,size:format_tags=title,artist,album",
+        "format=duration,size:"
+        "format_tags=title,artist,album",
         "-of", "json",
         str(file_path),
     ]
@@ -22,14 +38,14 @@ def probe_audio(file_path):
         command,
         capture_output=True,
         text=True,
+        timeout=120,
     )
 
     if result.returncode != 0:
-        return None, result.stderr.strip()
+        return None, result.stderr.strip() or "ffprobe failed"
 
     try:
         return json.loads(result.stdout), None
-
     except json.JSONDecodeError as error:
         return None, f"Invalid ffprobe JSON: {error}"
 
@@ -48,68 +64,61 @@ def decode_audio(file_path):
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE,
         text=True,
+        timeout=600,
     )
 
-    decoder_output = result.stderr.strip()
+    message = result.stderr.strip()
 
     if result.returncode != 0:
-        return "FAILED", decoder_output
+        return "FAILED", message or "ffmpeg decoding failed"
 
-    if decoder_output:
-        return "WARNING", decoder_output
+    if message:
+        return "WARNING", message
 
     return "OK", None
 
 
+def save_validation(item_id, status, **fields):
+    update_import_item_validation(
+        item_id=item_id,
+        status=status,
+        **fields,
+    )
+
+
 def validate_item(item):
-    file_path = Path(item["local_file_path"])
+    item_id = item["id"]
+    filename = item["original_filename"]
+    local_path = item.get("local_file_path")
 
-    print()
-    print("=" * 60)
-    print(f"Import item ID: {item['id']}")
-    print(f"File: {item['original_filename']}")
-    print(f"Path: {file_path}")
+    print(f"\n[{item_id}] {filename}", flush=True)
 
-    if not file_path.exists():
-        reason = "File does not exist."
-
-        update_import_item_validation(
-            item_id=item["id"],
-            status="failed",
-            failure_reason=reason,
+    if not local_path:
+        save_validation(
+            item_id,
+            "failed",
+            failure_reason="Local file path is missing.",
         )
-
-        print("Validation: FAILED")
-        print(f"Reason: {reason}")
-
         return "FAILED"
 
+    file_path = Path(local_path)
+
     if not file_path.is_file():
-        reason = "Path is not a regular file."
-
-        update_import_item_validation(
-            item_id=item["id"],
-            status="failed",
-            failure_reason=reason,
+        save_validation(
+            item_id,
+            "failed",
+            failure_reason=f"Audio file missing or invalid: {file_path}",
         )
-
-        print("Validation: FAILED")
-        print(f"Reason: {reason}")
-
         return "FAILED"
 
     metadata, error = probe_audio(file_path)
 
     if error:
-        update_import_item_validation(
-            item_id=item["id"],
-            status="failed",
+        save_validation(
+            item_id,
+            "failed",
             failure_reason=error,
         )
-
-        print("FFprobe: FAILED")
-        print(f"Reason: {error}")
-
         return "FAILED"
 
     audio_format = metadata.get("format", {})
@@ -119,98 +128,139 @@ def validate_item(item):
     artist = tags.get("artist")
     album = tags.get("album")
 
-    print("FFprobe: OK")
-    print(f"Duration: {audio_format.get('duration')}")
-    print(f"Size: {audio_format.get('size')}")
-    print(f"Title: {title}")
-    print(f"Artist: {artist}")
-    print(f"Album: {album}")
+    print(
+        f"FFprobe OK | title={title} | "
+        f"artist={artist} | album={album}",
+        flush=True,
+    )
 
-    decode_status, decode_message = decode_audio(file_path)
-
-    print(f"Full Decode: {decode_status}")
-
-    if decode_message:
-        print(f"Decoder message: {decode_message}")
+    decode_status, message = decode_audio(file_path)
 
     if decode_status == "FAILED":
-        update_import_item_validation(
-            item_id=item["id"],
-            status="failed",
+        save_validation(
+            item_id,
+            "failed",
             title=title,
             artist=artist,
             album=album,
-            failure_reason=decode_message,
+            failure_reason=message,
         )
-
-        print("Validation: FAILED")
         return "FAILED"
 
     if decode_status == "WARNING":
-        update_import_item_validation(
-            item_id=item["id"],
-            status="warning",
+        save_validation(
+            item_id,
+            "warning",
             title=title,
             artist=artist,
             album=album,
-            failure_reason=decode_message,
+            failure_reason=message,
         )
-
-        print("Validation: WARNING")
         return "WARNING"
 
-    update_import_item_validation(
-        item_id=item["id"],
-        status="validated",
+    save_validation(
+        item_id,
+        "validated",
         title=title,
         artist=artist,
         album=album,
         failure_reason=None,
     )
-
-    print("Validation: OK")
     return "OK"
 
 
 def main():
-    pending_items = get_pending_import_items()
+    args = parse_arguments()
 
-    print(f"Found {len(pending_items)} pending import item(s).")
+    # A missing tool is an infrastructure failure. Stop the run instead of
+    # marking every song as failed.
+    missing_tools = [
+        tool for tool in ("ffprobe", "ffmpeg")
+        if shutil.which(tool) is None
+    ]
+
+    if missing_tools:
+        raise RuntimeError(
+            "Required audio tools not installed: "
+            + ", ".join(missing_tools)
+        )
+
+    if args.job_id is not None:
+        job = get_import_job(args.job_id)
+        if job is None:
+            raise RuntimeError(
+                f"Import job {args.job_id} does not exist."
+            )
+
+        print(f"Import job ID: {args.job_id}")
+        print(f"Import run: {job['run_id']}")
+
+    pending_items = get_pending_import_items(
+        job_id=args.job_id
+    )
+
+    print(
+        f"Pending items: {len(pending_items)}",
+        flush=True,
+    )
 
     validated = 0
     warnings = 0
     failed = 0
+    unrecorded = 0
 
     for item in pending_items:
         try:
-            status = validate_item(item)
+            result = validate_item(item)
 
-            if status == "OK":
+            if result == "OK":
                 validated += 1
-
-            elif status == "WARNING":
+            elif result == "WARNING":
                 warnings += 1
-
             else:
                 failed += 1
 
-        except Exception as error:
+            print(
+                f"[{item['id']}] {result}",
+                flush=True,
+            )
+
+        except (FileNotFoundError, subprocess.TimeoutExpired) as error:
             failed += 1
+            reason = f"Audio validation failure: {error}"
 
-            print()
-            print("=" * 60)
-            print(f"Import item ID: {item['id']}")
-            print(f"File: {item['original_filename']}")
-            print("Validation: FAILED")
-            print(f"Reason: {error}")
+            try:
+                save_validation(
+                    item["id"],
+                    "failed",
+                    failure_reason=reason,
+                )
+                print(
+                    f"[{item['id']}] FAILED: {reason}",
+                    flush=True,
+                )
+            except Exception as db_error:
+                unrecorded += 1
+                print(
+                    f"[{item['id']}] DATABASE ERROR: {db_error}",
+                    flush=True,
+                )
 
-    print()
-    print("=" * 60)
-    print("Audio validation complete.")
-    print(f"Pending items checked: {len(pending_items)}")
-    print(f"Validated OK: {validated}")
+        except Exception:
+            # Unexpected exceptions may indicate database or
+            # infrastructure problems. Do not hide them.
+            raise
+
+    print("\nAudio validation complete.")
+    print(f"Validated: {validated}")
     print(f"Warnings: {warnings}")
     print(f"Failed: {failed}")
+    print(f"Unrecorded failures: {unrecorded}")
+
+    if unrecorded:
+        raise RuntimeError(
+            f"{unrecorded} validation failures were not recorded"
+        )
 
 
 if __name__ == "__main__":

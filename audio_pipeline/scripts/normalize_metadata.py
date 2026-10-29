@@ -1,8 +1,11 @@
+import argparse
 import re
 
 from audio_pipeline.scripts.db import (
-    get_connection,
+    get_import_items,
+    get_import_job,
     update_import_item_metadata,
+    mark_import_item_failed,
 )
 
 
@@ -22,11 +25,33 @@ ALBUM_MAPPINGS = {
 }
 
 
+# Fallback artist name for songs without valid artist metadata.
+UNKNOWN_ARTIST = "Unknown Artist"
+
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(
+        description="Normalize imported audio metadata."
+    )
+
+    parser.add_argument(
+        "--job-id",
+        type=int,
+        default=None,
+        help=(
+            "Process only validated/warning items "
+            "belonging to this import job."
+        ),
+    )
+
+    return parser.parse_args()
+
+
 def remove_watermarks(value):
     if value is None:
         return None
 
-    cleaned = value
+    cleaned = str(value)
 
     for watermark in WATERMARK_NAMES:
         cleaned = re.sub(
@@ -52,7 +77,12 @@ def clean_text(value):
 
     cleaned = remove_watermarks(value)
 
-    cleaned = re.sub(r"\s+", " ", cleaned)
+    cleaned = re.sub(
+        r"\s+",
+        " ",
+        cleaned,
+    )
+
     cleaned = cleaned.strip(" -:|")
 
     return cleaned or None
@@ -83,7 +113,12 @@ def clean_album(album):
         cleaned,
     )
 
-    cleaned = re.sub(r"\s+", " ", cleaned)
+    cleaned = re.sub(
+        r"\s+",
+        " ",
+        cleaned,
+    )
+
     cleaned = cleaned.strip(" -:|")
 
     if not cleaned:
@@ -93,7 +128,9 @@ def clean_album(album):
     #
     # Example:
     #   "Telugu Folk Songs" -> "Private Songs"
-    mapped_album = ALBUM_MAPPINGS.get(cleaned.casefold())
+    mapped_album = ALBUM_MAPPINGS.get(
+        cleaned.casefold()
+    )
 
     if mapped_album:
         return mapped_album
@@ -101,75 +138,88 @@ def clean_album(album):
     return cleaned
 
 
-def get_items_for_normalization():
-    connection = get_connection()
-
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT
-                    id,
-                    original_filename,
-                    title,
-                    artist,
-                    album,
-                    status
-                FROM import_items
-                WHERE status IN ('validated', 'warning')
-                ORDER BY id;
-                """
-            )
-
-            rows = cursor.fetchall()
-
-        return [
-            {
-                "id": row[0],
-                "original_filename": row[1],
-                "title": row[2],
-                "artist": row[3],
-                "album": row[4],
-                "status": row[5],
-            }
-            for row in rows
-        ]
-
-    finally:
-        connection.close()
+def get_items_for_normalization(job_id=None):
+    return get_import_items(
+        job_id=job_id,
+        statuses=[
+            "validated",
+            "warning",
+        ],
+    )
 
 
 def normalize_item(item):
-    normalized_title = clean_title(item["title"])
-    normalized_artist = clean_artist(item["artist"])
-    normalized_album = clean_album(item["album"])
+    normalized_title = clean_title(
+        item["title"]
+    )
+
+    normalized_artist = clean_artist(
+        item["artist"]
+    )
+
+    normalized_album = clean_album(
+        item["album"]
+    )
 
     if not normalized_title:
-        raise ValueError("Normalized title is empty.")
+        raise ValueError(
+            "Normalized title is empty."
+        )
 
+    # FIX:
+    # If artist metadata is missing, empty, or contains
+    # only a removed website watermark, use a safe fallback.
+    #
+    # Valid artist names remain unchanged.
     if not normalized_artist:
-        raise ValueError("Normalized artist is empty.")
+        normalized_artist = UNKNOWN_ARTIST
+
+        print(
+            f"WARNING: Missing artist metadata for "
+            f"{item['original_filename']}. "
+            f"Using '{UNKNOWN_ARTIST}'."
+        )
 
     if not normalized_album:
-        raise ValueError("Normalized album is empty.")
+        raise ValueError(
+            "Normalized album is empty."
+        )
 
     print()
     print("=" * 70)
-    print(f"Import item ID: {item['id']}")
-    print(f"File: {item['original_filename']}")
-    print(f"Status: {item['status']}")
+    print(
+        f"Import item ID: {item['id']}"
+    )
+    print(
+        f"File: {item['original_filename']}"
+    )
+    print(
+        f"Status: {item['status']}"
+    )
 
     print()
     print("Before:")
-    print(f"  Title : {item['title']}")
-    print(f"  Artist: {item['artist']}")
-    print(f"  Album : {item['album']}")
+    print(
+        f"  Title : {item['title']}"
+    )
+    print(
+        f"  Artist: {item['artist']}"
+    )
+    print(
+        f"  Album : {item['album']}"
+    )
 
     print()
     print("After:")
-    print(f"  Title : {normalized_title}")
-    print(f"  Artist: {normalized_artist}")
-    print(f"  Album : {normalized_album}")
+    print(
+        f"  Title : {normalized_title}"
+    )
+    print(
+        f"  Artist: {normalized_artist}"
+    )
+    print(
+        f"  Album : {normalized_album}"
+    )
 
     update_import_item_metadata(
         item_id=item["id"],
@@ -182,9 +232,39 @@ def normalize_item(item):
 
 
 def main():
-    items = get_items_for_normalization()
+    args = parse_arguments()
 
-    print(f"Found {len(items)} item(s) for metadata normalization.")
+    if args.job_id is not None:
+        job = get_import_job(
+            args.job_id
+        )
+
+        if job is None:
+            raise RuntimeError(
+                f"Import job {args.job_id} "
+                "does not exist."
+            )
+
+        print(
+            f"Import job ID: {args.job_id}"
+        )
+        print(
+            f"Import run: {job['run_id']}"
+        )
+
+    else:
+        print(
+            "Import job ID: ALL eligible jobs"
+        )
+
+    items = get_items_for_normalization(
+        job_id=args.job_id
+    )
+
+    print(
+        f"Found {len(items)} item(s) "
+        "for metadata normalization."
+    )
 
     updated = 0
     failed = 0
@@ -194,22 +274,46 @@ def main():
             normalize_item(item)
             updated += 1
 
-        except Exception as error:
+        except ValueError as error:
+            reason = f"Metadata normalization failure: {error}"
+
+            # Only invalid metadata is a per-song failure.
+            # Database errors must propagate to Airflow.
+            mark_import_item_failed(
+                item_id=item["id"],
+                failure_reason=reason,
+            )
+
             failed += 1
 
             print()
             print("=" * 70)
             print(f"Import item ID: {item['id']}")
             print(f"File: {item['original_filename']}")
-            print("Database update: FAILED")
-            print(f"Reason: {error}")
+            print("Metadata normalization: FAILED")
+            print(f"Reason: {reason}")
 
     print()
     print("=" * 70)
-    print("Metadata normalization complete.")
-    print(f"Items checked: {len(items)}")
-    print(f"Updated: {updated}")
-    print(f"Failed: {failed}")
+    print(
+        "Metadata normalization complete."
+    )
+
+    if args.job_id is not None:
+        print(
+            f"Import job ID: {args.job_id}"
+        )
+
+    print(
+        f"Items checked: {len(items)}"
+    )
+    print(
+        f"Updated: {updated}"
+    )
+    print(
+        f"Failed: {failed}"
+    )
+
 
 
 if __name__ == "__main__":
