@@ -53,7 +53,8 @@
   function render() {
     $('music-account-guest').hidden = !!user;
     $('music-account-member').hidden = !user;
-    trigger.textContent = user ? 'Profile · ' + user.name : 'Profile';
+    trigger.textContent = user ? user.name : 'Profile';
+    trigger.setAttribute('aria-label', user ? 'Open account for ' + user.name : 'Open profile');
     if (user) { $('account-user-email').textContent = user.email; $('account-edit-name').value = user.name; }
   }
   function setMode(next) {
