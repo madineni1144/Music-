@@ -1,0 +1,11 @@
+# Xcode local state and build outputs
+.DS_Store
+DerivedData/
+build/
+xcuserdata/
+*.xcuserstate
+*.ipa
+*.dSYM/
+*.dSYM.zip
+*.p12
+*.mobileprovision
