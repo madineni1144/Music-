@@ -84,6 +84,8 @@ connectionTimeoutMillis: 5000
 ROOT
 ========================= */
 
+require("./madineni-auth.cjs").mount(app, pool);
+
 // MADINENI LYRICS START
 require("./madineni-lyrics.cjs").mount(app, pool, {musicDir:MUSIC_DIR});
 // MADINENI LYRICS END
