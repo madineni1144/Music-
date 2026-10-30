@@ -39,6 +39,10 @@ final class UserAccount: ObservableObject {
 
     func submit(serverText: String, name: String, email: String, password: String, register: Bool) async {
         guard !busy else { return }
+        if register && !(8...12).contains(password.utf16.count) {
+            error = "Use a password between 8 and 12 characters."
+            return
+        }
         busy = true; error = nil
         defer { busy = false }
         do {
@@ -143,7 +147,7 @@ struct UserAccountPanel: View {
                 if register { TextField("Name", text: $name).textContentType(.name) }
                 TextField("Email", text: $email).keyboardType(.emailAddress).textContentType(.username)
                     .textInputAutocapitalization(.never).autocorrectionDisabled()
-                SecureField(register ? "Password (12–128 characters)" : "Password", text: $password)
+                SecureField(register ? "Password (8–12 characters)" : "Password", text: $password)
                     .textContentType(register ? .newPassword : .password)
                 Button(register ? "Create account" : "Sign in") {
                     Task {
@@ -170,3 +174,4 @@ struct UserAccountPanel: View {
         }
     }
 }
+

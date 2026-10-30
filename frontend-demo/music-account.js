@@ -29,7 +29,7 @@
         <div id="account-register-name" hidden><label for="account-name">Display name</label><input id="account-name" name="name" maxlength="80" autocomplete="nickname"></div>
         <label for="account-email">Email</label><input id="account-email" type="email" name="email" maxlength="254" autocomplete="username" required>
         <label for="account-password">Password</label><input id="account-password" type="password" name="password" maxlength="128" autocomplete="current-password" required>
-        <p id="account-password-hint" class="account-note" hidden>Use 12–128 characters.</p>
+        <p id="account-password-hint" class="account-note" hidden>Use 8–12 characters.</p>
         <div class="account-actions"><button type="submit" id="account-submit">Log in</button></div>
       </form>
     </div>
@@ -61,7 +61,8 @@
     const register = next === 'register';
     $('account-register-name').hidden = !register;
     $('account-name').required = register;
-    $('account-password').minLength = register ? 12 : 1;
+    $('account-password').minLength = register ? 8 : 1;
+    $('account-password').maxLength = register ? 12 : 128;
     $('account-password').autocomplete = register ? 'new-password' : 'current-password';
     $('account-password-hint').hidden = !register;
     $('account-submit').textContent = register ? 'Create account' : 'Log in';
@@ -130,3 +131,4 @@
   });
   setMode('login'); render();
 })();
+

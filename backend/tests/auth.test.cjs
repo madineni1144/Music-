@@ -29,7 +29,7 @@ function fixture() {
     return res;
   }};
 }
-const body={email:'Person@example.com',name:'Person',password:'long-password-123'};
+const body={email:'Person@example.com',name:'Person',password:'DemoPass123'};
 test('browser registration, cookie session, profile update, logout and revocation',async()=>{
  const f=fixture();let r=await f.request('POST','/api/auth/register',{headers:WEB,body});
  assert.equal(r.statusCode,200);assert.equal(r.data.token,undefined);assert.equal(r.data.user.email,'person@example.com');
@@ -66,4 +66,19 @@ test('validation, duplicate email and rate limiting',async()=>{
  await f.request('POST','/api/auth/register',{headers:WEB,body});r=await f.request('POST','/api/auth/register',{headers:WEB,body});assert.equal(r.statusCode,409);
  for(let i=0;i<21;i++) r=await f.request('POST','/api/auth/login',{headers:WEB,body:{email:body.email,password:'wrong'},ip:'other'});
  assert.equal(r.statusCode,429);
+});
+
+
+test('new passwords accept 8 and 12 characters and reject 7 and 13',async()=>{
+ for(const [length,expected] of [[7,400],[8,200],[12,200],[13,400]]){
+  const f=fixture();const r=await f.request('POST','/api/auth/register',{headers:WEB,body:{...body,password:'a'.repeat(length)}});
+  assert.equal(r.statusCode,expected,`password length ${length}`);
+ }
+});
+test('existing users with longer passwords can still log in',async()=>{
+ const f=fixture();const password='previous-long-password';const salt='a'.repeat(32);
+ const hash=require('node:crypto').scryptSync(password,salt,64).toString('hex');
+ f.users.push({id:1,email:'old@example.com',name:'Existing',password_hash:salt+':'+hash});
+ const r=await f.request('POST','/api/auth/login',{headers:WEB,body:{email:'old@example.com',password}});
+ assert.equal(r.statusCode,200);assert.equal(r.data.user.name,'Existing');
 });

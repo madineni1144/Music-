@@ -84,8 +84,8 @@ exports.mount = function (app, pool) {
     const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
     const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
     const password = req.body.password;
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || !name || name.length > 80 || typeof password !== 'string' || password.length < 12 || password.length > 128) {
-      return res.status(400).json({ error: 'Enter a name, valid email, and a password between 12 and 128 characters.' });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || !name || name.length > 80 || typeof password !== 'string' || password.length < 8 || password.length > 12) {
+      return res.status(400).json({ error: 'Enter a name, valid email, and a password between 8 and 12 characters.' });
     }
     const salt = crypto.randomBytes(16).toString('hex');
     const hash = (await scrypt(password, salt, 64)).toString('hex');
@@ -125,4 +125,5 @@ exports.mount = function (app, pool) {
     res.status(204).end();
   }));
 };
+
 
