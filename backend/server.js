@@ -11,8 +11,59 @@ const FRONTEND_DIR = "/opt/musicapp/app/frontend";
 const MUSIC_DIR = "/opt/musicapp/music/Songs";
 const COVERS_DIR = "/opt/musicapp/covers";
 
+// Accept only plain positive integers, so "12abc" is rejected.
+function parseId(value) {
+  const text = String(value ?? "");
+  return /^[1-9]\d{0,14}$/.test(text) ? Number(text) : NaN;
+}
+
+// Browsers stream songs from /music/<path relative to the library>.
+// Stored file paths are absolute, so convert them for the client.
+function audioUrl(filePath) {
+  if (!filePath) return null;
+
+  const value = String(filePath);
+  const relative = value.startsWith("/music/")
+    ? value.slice("/music/".length)
+    : path.relative(MUSIC_DIR, path.resolve(MUSIC_DIR, value));
+
+  if (
+    !relative ||
+    path.isAbsolute(relative) ||
+    relative === ".." ||
+    relative.startsWith(".." + path.sep)
+  ) {
+    return null;
+  }
+
+  return "/music/" + relative
+    .split(path.sep)
+    .map(encodeURIComponent)
+    .join("/");
+}
+
+function withAudioUrl(row) {
+  return { ...row, audio_url: audioUrl(row.file_path) };
+}
+
 app.use(cors());
 app.use(express.json());
+
+// Old backups, generator scripts and editor copies in the frontend folders
+// are not meant to be public. Anything under /api, /music or /covers is
+// left alone.
+const hiddenFrontendFile = /(^|[-._])(before|backup|working)|\.(save|bak|py)$|^\/?madineni$/i;
+app.use((req, res, next) => {
+  if (/^\/(api|music|covers)(\/|$)/.test(req.path)) return next();
+  let name;
+  try {
+    name = decodeURIComponent(req.path);
+  } catch {
+    return res.status(400).end();
+  }
+  if (hiddenFrontendFile.test(name)) return res.status(404).end();
+  next();
+});
 
 app.use(express.static(FRONTEND_DIR));
 app.use("/music", express.static(MUSIC_DIR));
@@ -33,6 +84,13 @@ connectionTimeoutMillis: 5000
 ROOT
 ========================= */
 
+require("./madineni-auth.cjs").mount(app, pool);
+
+// MADINENI LYRICS START
+require("./madineni-lyrics.cjs").mount(app, pool, {musicDir:MUSIC_DIR});
+// MADINENI LYRICS END
+
+
 app.get("/", (req, res) => {
 res.sendFile(
 path.join(FRONTEND_DIR, "index.html")
@@ -42,6 +100,39 @@ path.join(FRONTEND_DIR, "index.html")
 /* =========================
 HEALTH
 ========================= */
+
+
+// MADINENI_COVER_FIX_V2
+const coverFs = require("fs");
+const coverPathLib = require("path");
+const fallbackCover = "/covers/default-cover.svg";
+
+function findMusicCover(row, albumMode) {
+  const options = [
+    row.cover_path,
+    row.album_id && `/covers/album-${row.album_id}.jpg`,
+    albumMode && `/covers/album-${row.id}.jpg`,
+    albumMode && `/covers/${row.id}.jpg`,
+    row.cover_art
+  ];
+
+  for (const url of options) {
+    if (typeof url !== "string" ||
+        !url.startsWith("/covers/")) continue;
+
+    const name = url.slice(8);
+    if (!name || name.includes("/") ||
+        name.includes("\\") || name.includes("..")) continue;
+
+    try {
+      if (coverFs.statSync(
+        coverPathLib.join(COVERS_DIR, name)
+      ).isFile()) return url;
+    } catch (_) {}
+  }
+
+  return fallbackCover;
+}
 
 app.get("/api/health", async (req, res) => {
 
@@ -68,7 +159,7 @@ res.status(503).json({
   success: false,
   status: "error",
   database: "disconnected",
-  error: error.message
+  error: "Database request failed"
 });
 
 }
@@ -103,7 +194,7 @@ console.error(
 
 res.status(500).json({
   connected: false,
-  error: error.message
+  error: "Database request failed"
 });
 
 }
@@ -134,16 +225,10 @@ const album =
     : "";
 
 let limit =
-  Number.parseInt(
-    req.query.limit,
-    10
-  );
+  parseId(req.query.limit);
 
 let offset =
-  Number.parseInt(
-    req.query.offset,
-    10
-  );
+  parseId(req.query.offset);
 
 if (
   !Number.isInteger(limit) ||
@@ -254,7 +339,7 @@ const result =
       songs.file_format,
       songs.file_size,
       songs.created_at,
-      '/covers/' || songs.id || '.jpg' AS cover_art
+      COALESCE(NULLIF(albums.cover_path, ''), '/covers/' || songs.id || '.jpg') AS cover_art
 
     FROM songs
 
@@ -274,7 +359,7 @@ const result =
     values
   );
 
-res.json(result.rows);
+res.json(result.rows.map(row => withAudioUrl({...row, cover_art: findMusicCover(row, false)})));
 
 } catch (error) {
 
@@ -284,8 +369,7 @@ console.error(
 );
 
 res.status(500).json({
-  error: "Unable to load songs",
-  details: error.message
+  error: "Unable to load songs"
 });
 
 }
@@ -314,7 +398,7 @@ res.json({
 
 res.status(500).json({
   success: false,
-  error: error.message
+  error: "Database request failed"
 });
 
 }
@@ -330,10 +414,7 @@ app.get("/api/songs/:id", async (req, res) => {
 try {
 
 const id =
-  Number.parseInt(
-    req.params.id,
-    10
-  );
+  parseId(req.params.id);
 
 if (!Number.isInteger(id)) {
 
@@ -385,7 +466,7 @@ if (!result.rows.length) {
 
 res.json({
   success: true,
-  data: result.rows[0]
+  data: withAudioUrl(result.rows[0])
 });
 
 } catch (error) {
@@ -397,7 +478,7 @@ console.error(
 
 res.status(500).json({
   success: false,
-  error: error.message
+  error: "Database request failed"
 });
 
 }
@@ -445,7 +526,7 @@ console.error(
 
 res.status(500).json({
   success: false,
-  error: error.message
+  error: "Database request failed"
 });
 
 }
@@ -471,7 +552,7 @@ const result =
       albums.year,
       albums.cover_path,
       COUNT(songs.id) AS song_count,
-      '/covers/' || MIN(songs.id) || '.jpg' AS cover_art
+      COALESCE(NULLIF(albums.cover_path, ''), '/covers/' || MIN(songs.id) || '.jpg') AS cover_art
 
     FROM albums
 
@@ -489,12 +570,14 @@ const result =
       albums.year,
       albums.cover_path
 
+    HAVING COUNT(songs.id) > 0
+
     ORDER BY
       albums.title ASC
     `
   );
 
-res.json(result.rows);
+res.json(result.rows.map(row => ({...row, cover_art: findMusicCover(row, true)})));
 
 } catch (error) {
 
@@ -505,7 +588,7 @@ console.error(
 
 res.status(500).json({
   success: false,
-  error: error.message
+  error: "Database request failed"
 });
 
 }
@@ -550,7 +633,7 @@ console.error(
 
 res.status(500).json({
   success: false,
-  error: error.message
+  error: "Database request failed"
 });
 
 }
@@ -605,8 +688,7 @@ console.error(
 
 res.status(500).json({
   success: false,
-  error: "Unable to load playlists",
-  details: error.message
+  error: "Unable to load playlists"
 });
 
 }
@@ -672,8 +754,7 @@ console.error(
 
 res.status(500).json({
   success: false,
-  error: "Unable to create playlist",
-  details: error.message
+  error: "Unable to create playlist"
 });
 
 }
@@ -691,10 +772,7 @@ async (req, res) => {
 try {
 
   const playlistId =
-    Number.parseInt(
-      req.params.id,
-      10
-    );
+    parseId(req.params.id);
 
   if (!Number.isInteger(playlistId)) {
 
@@ -737,7 +815,7 @@ try {
 
   res.json({
     success: true,
-    data: result.rows
+    data: result.rows.map(withAudioUrl)
   });
 
 } catch (error) {
@@ -749,8 +827,7 @@ try {
 
   res.status(500).json({
     success: false,
-    error: "Unable to load playlist songs",
-    details: error.message
+    error: "Unable to load playlist songs"
   });
 
 }
@@ -769,16 +846,10 @@ async (req, res) => {
 try {
 
   const playlistId =
-    Number.parseInt(
-      req.params.id,
-      10
-    );
+    parseId(req.params.id);
 
   const songId =
-    Number.parseInt(
-      req.body.song_id,
-      10
-    );
+    parseId(req.body.song_id);
 
   if (
     !Number.isInteger(playlistId) ||
@@ -824,11 +895,18 @@ try {
     error.message
   );
 
+  // 23503 = foreign key violation: the playlist or song does not exist.
+  if (error.code === "23503") {
+    return res.status(404).json({
+      success: false,
+      error: "Playlist or song not found"
+    });
+  }
+
   res.status(500).json({
     success: false,
     error:
-      "Unable to add song to playlist",
-    details: error.message
+      "Unable to add song to playlist"
   });
 
 }
@@ -847,16 +925,10 @@ async (req, res) => {
 try {
 
   const playlistId =
-    Number.parseInt(
-      req.params.id,
-      10
-    );
+    parseId(req.params.id);
 
   const songId =
-    Number.parseInt(
-      req.params.songId,
-      10
-    );
+    parseId(req.params.songId);
 
   if (
     !Number.isInteger(playlistId) ||
@@ -902,8 +974,7 @@ try {
   res.status(500).json({
     success: false,
     error:
-      "Unable to remove song from playlist",
-    details: error.message
+      "Unable to remove song from playlist"
   });
 
 }
@@ -922,10 +993,7 @@ async (req, res) => {
 try {
 
   const playlistId =
-    Number.parseInt(
-      req.params.id,
-      10
-    );
+    parseId(req.params.id);
 
   if (!Number.isInteger(playlistId)) {
 
@@ -936,17 +1004,15 @@ try {
 
   }
 
-  await pool.query(
-    `
-    DELETE FROM playlist_songs
-    WHERE playlist_id = $1
-    `,
-    [playlistId]
-  );
-
+  // One statement, so the playlist and its songs are removed together.
   const result =
     await pool.query(
       `
+      WITH removed_songs AS (
+        DELETE FROM playlist_songs
+        WHERE playlist_id = $1
+      )
+
       DELETE FROM playlists
       WHERE id = $1
 
@@ -981,8 +1047,7 @@ try {
   res.status(500).json({
     success: false,
     error:
-      "Unable to delete playlist",
-    details: error.message
+      "Unable to delete playlist"
   });
 
 }
@@ -993,6 +1058,74 @@ try {
 /* =========================
 404
 ========================= */
+
+
+// India trending chart — server-side RSS proxy
+let indiaChartCache = null;
+let indiaChartUpdated = 0;
+
+app.get("/api/trending", async (req, res) => {
+  const now = Date.now();
+
+  if (indiaChartCache && now - indiaChartUpdated < 1800000) {
+    return res.json(indiaChartCache);
+  }
+
+  try {
+    const url =
+      "https://itunes.apple.com/in/rss/topsongs/limit=100/json";
+
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(15000)
+    });
+
+    if (!response.ok) {
+      throw new Error("Upstream HTTP " + response.status);
+    }
+
+    const payload = await response.json();
+    const entries = payload?.feed?.entry || [];
+
+    const results = entries.map(song => {
+      const links = Array.isArray(song.link)
+        ? song.link
+        : [song.link];
+
+      const link = links.find(
+        x => x?.attributes?.href?.startsWith("https://")
+      );
+
+      return {
+        name: song["im:name"]?.label || "Unknown song",
+        artistName: song["im:artist"]?.label || "Unknown artist",
+        artwork: {
+          url: (song["im:image"] || []).slice(-1)[0]?.label || ""
+        },
+        url: link?.attributes?.href || ""
+      };
+    });
+
+    if (!results.length) {
+      throw new Error("Chart returned no songs");
+    }
+
+    indiaChartCache = {feed: {results}};
+    indiaChartUpdated = now;
+
+    res.json(indiaChartCache);
+  } catch (error) {
+    console.error("Trending chart error:", error.message);
+
+    if (indiaChartCache) {
+      return res.json(indiaChartCache);
+    }
+
+    res.status(502).json({
+      success: false,
+      error: "Trending chart temporarily unavailable"
+    });
+  }
+});
 
 app.use((req, res) => {
 
@@ -1020,12 +1153,6 @@ console.log("======================================");
 console.log("Port:      " + PORT);
 console.log(
   "Local:     http://127.0.0.1:" + PORT
-);
-console.log(
-  "Wi-Fi:     http://192.168.4.204:" + PORT
-);
-console.log(
-  "Tailscale: http://100.83.79.17:" + PORT
 );
 console.log("======================================");
 console.log("");

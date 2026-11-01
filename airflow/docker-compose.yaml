@@ -1,61 +1,56 @@
+x-airflow-common: &airflow-common
+  image: music-airflow:3.1.0
+  user: "50000:0"
+  restart: unless-stopped
+
+  env_file:
+    - /etc/musicapp-airflow-compose.env
+    - /etc/musicapp-airflow-musicdb.env
+    - /etc/musicapp-airflow-email.env
+
+  environment:
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: "http://music-airflow:8080/execution/"
+    GOOGLE_DRIVE_TOKEN_FILE: /etc/google_drive_token.json
+    MUSICAPP_EMAIL_ENV: /etc/musicapp-email.env
+    PYTHONPATH: /opt/musicapp/app
+    MUSICAPP_BASE_URL: "http://host.docker.internal:3000"
+
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+
+  volumes:
+    - ./dags:/opt/airflow/dags:ro
+    - ./logs:/opt/airflow/logs:rw
+    - ./plugins:/opt/airflow/plugins:ro
+    - /opt/musicapp/app:/opt/musicapp/app:ro
+    - /opt/musicapp/staging:/opt/musicapp/staging:rw
+    - /opt/musicapp/music/Songs:/opt/musicapp/music/Songs:rw
+    - /opt/musicapp/reports:/opt/musicapp/reports:rw
+    - /etc/musicapp-google-drive-token.json:/etc/google_drive_token.json:rw
+    - /etc/musicapp-airflow-musicdb.env:/etc/musicapp.env:ro
+    - /etc/musicapp-airflow-email.env:/etc/musicapp-email.env:ro
+
 services:
   airflow:
-    build: .
-    image: music-airflow:3.1.0
+    <<: *airflow-common
     container_name: music-airflow
     command: api-server --host 0.0.0.0 --port 8080
     ports:
-      - "8081:8080"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    environment:
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "postgresql+psycopg2://postgres:momdad1234@host.docker.internal:5432/airflow"
-      AIRFLOW__CORE__EXECUTION_API_SERVER_URL: "http://music-airflow:8080/execution/"
-      AIRFLOW__API_AUTH__JWT_SECRET: "kW52Fz9TFtV5uG92eOleaQ=="
-    volumes:
-      - ./dags:/opt/airflow/dags
-      - ./logs:/opt/airflow/logs
-      - ./plugins:/opt/airflow/plugins
-      - /opt/musicapp/music/Songs:/opt/airflow/music
-      - /opt/musicapp/covers:/opt/airflow/covers
+      - "127.0.0.1:8081:8080"
 
   airflow-scheduler:
-    build: .
-    image: music-airflow:3.1.0
+    <<: *airflow-common
     container_name: music-airflow-scheduler
     command: scheduler
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    environment:
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "postgresql+psycopg2://postgres:momdad1234@host.docker.internal:5432/airflow"
-      AIRFLOW__CORE__EXECUTION_API_SERVER_URL: "http://music-airflow:8080/execution/"
-      AIRFLOW__API_AUTH__JWT_SECRET: "kW52Fz9TFtV5uG92eOleaQ=="
-    volumes:
-      - ./dags:/opt/airflow/dags
-      - ./logs:/opt/airflow/logs
-      - ./plugins:/opt/airflow/plugins
-      - /opt/musicapp/music/Songs:/opt/airflow/music
-      - /opt/musicapp/covers:/opt/airflow/covers
+    depends_on:
+      - airflow
+
   airflow-dag-processor:
-    build: .
-    image: music-airflow:3.1.0
+    <<: *airflow-common
     container_name: music-airflow-dag-processor
     command: dag-processor
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    environment:
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "postgresql+psycopg2://postgres:momdad4567@host.docker.internal:5432/airflow"
-      AIRFLOW__CORE__EXECUTION_API_SERVER_URL: "http://music-airflow:8080/execution/"
-      AIRFLOW__API_AUTH__JWT_SECRET: "kW52Fz9TFtV5uG92eOleaQ=="
-    volumes:
-      - ./dags:/opt/airflow/dags
-      - ./logs:/opt/airflow/logs
-      - ./plugins:/opt/airflow/plugins
-      - /opt/musicapp/music/Songs:/opt/airflow/music
-      - /opt/musicapp/covers:/opt/airflow/covers
+    depends_on:
+      - airflow

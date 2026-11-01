@@ -54,3 +54,27 @@ temp/
 Thumbs.db
 .vscode/
 .idea/
+
+# Track audio pipeline database migrations
+!audio_pipeline/sql/
+!audio_pipeline/sql/*.sql
+
+# Local backups and historical copies
+/backups/
+*.bak
+*.backup.*
+*_before_v*.py
+*-before-*.html
+
+# Local credentials and runtime configuration
+.env.*
+!.env.example
+!.env.sample
+rclone.conf
+client_secret*.json
+credentials*.json
+token*.json
+
+# Frontend backup copies
+/frontend-demo/index-backup-*.html
+/frontend-demo/index-demo-backup.html
