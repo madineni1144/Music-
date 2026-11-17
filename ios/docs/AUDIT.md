@@ -5,13 +5,13 @@ Line numbers below refer to the base commit unless stated.
 
 ## Verification status (read this first)
 
-This work was done on a Linux workspace with no Swift toolchain, no Xcode and no device.
+The code was written on a Linux workspace with no Swift toolchain, Xcode or device. Compilation and tests were then run on GitHub-hosted runners through the `iOS CI` workflow.
 
 | Check | Result |
 |---|---|
-| Swift compilation | **Not run.** Every Swift change and test is uncompiled. |
-| XCTest / `swift test` | **Not run.** No test has been executed, so none is reported as passing. |
-| On-device behavior (lock screen, Bluetooth, interruptions, performance) | **Not verified.** |
+| App compiles | **Passed.** Unsigned Debug build for iOS Simulator on `macos-15` ([run 43990824554](https://github.com/madineni1144/Music-/actions/runs/43990824554)). Strict-concurrency warnings were not reviewed. |
+| `swift test` (46 tests) | **Passed on Linux** (Swift 5.10, [run 43990622421](https://github.com/madineni1144/Music-/actions/runs/43990622421)) **and on macOS** (same run as the build). 0 failures. |
+| On-device behavior (lock screen, Bluetooth, interruptions, performance) | **Not verified.** Needs a physical iPhone. |
 | `Info.plist` parses as valid XML plist | Passed (Python `plistlib`) |
 | `git diff --check` | Passed |
 | Delimiter balance on all Swift files | Passed (crude script, not a compiler) |
@@ -73,7 +73,7 @@ Pagination and progressive loading in `MusicLibrary.loadCatalog` (matches the ba
 | **Blocker for the pair** | Finding 9 (auth) |
 | Not done | `SWIFT_STRICT_CONCURRENCY=targeted` build to see concurrency warnings; Instruments profiling; device test of lock screen, Bluetooth, interruptions and route changes |
 
-## Tests added (all unexecuted)
+## Tests added (46, all passing in CI)
 
 `ios/CoreLogic` is a SwiftPM package that compiles `PlaybackQueue.swift`, `MusicModels.swift` and `ReleaseModels.swift` from the app target through symlinks (one copy of the code, no `.pbxproj` edits). 46 tests cover:
 
@@ -83,7 +83,7 @@ Pagination and progressive loading in `MusicLibrary.loadCatalog` (matches the ba
 - **Lyrics:** LRC parsing (fractions, multiple tags, CRLF) and the backend payload shape (regression for finding 1).
 - **Releases:** version validation and comparison.
 
-Regression coverage exists for findings 1 and 5. Findings 2, 3, 4, 6 and 8 need device or UI verification and cannot be unit-tested in this package.
+Regression coverage exists for findings 1 and 5. Findings 2, 3, 4, 6 and 8 compile but need device or UI verification and cannot be unit-tested in this package. `MusicPlayer`, `MusicLibrary` networking and `ArtworkLoader` have no automated tests yet (finding 14).
 
 ## Commands to verify on a Mac
 
@@ -109,7 +109,7 @@ The same Linux test job runs automatically on pull requests into `feature/ios-de
 
 ## Recommended order
 
-1. Run the commands above and fix any compile or test failure from this branch.
+1. Install this branch on a device and run the manual checks above (CI cannot cover them).
 2. Decide the auth approach (finding 9) together with the backend change.
 3. Profile playback on a large library, then do the `PlaybackClock` refactor (finding 10) if the profile confirms it.
 4. Add an Xcode test target and the player/library mocks (finding 14).
