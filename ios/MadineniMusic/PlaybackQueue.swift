@@ -44,8 +44,13 @@ struct PlaybackQueue<Item> {
     }
     mutating func append(_ item: Item) { items.append(item) }
     mutating func shuffleUpcoming() {
+        var generator = SystemRandomNumberGenerator()
+        shuffleUpcoming(using: &generator)
+    }
+    /// Shuffles only the songs after the current one. Injecting the generator makes the result reproducible in tests.
+    mutating func shuffleUpcoming<G: RandomNumberGenerator>(using generator: inout G) {
         guard upcomingCount > 1 else { return }
-        items = Array(items.prefix(index + 1)) + Array(items.dropFirst(index + 1)).shuffled()
+        items = Array(items.prefix(index + 1)) + Array(items.dropFirst(index + 1)).shuffled(using: &generator)
     }
     @discardableResult
     mutating func removeUpcoming(at position: Int) -> Bool {
