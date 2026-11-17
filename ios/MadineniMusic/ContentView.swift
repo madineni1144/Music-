@@ -56,6 +56,9 @@ struct ContentView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
         }
+        // Destination-style NavigationLinks are not tracked by `navigationPath`, so clearing it
+        // cannot pop them. A new stack identity per tab guarantees a tab switch shows that tab's root.
+        .id(tab)
         .onChange(of: tab) { _, _ in navigationPath = NavigationPath() }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 0) {
@@ -1199,8 +1202,9 @@ private struct ArtworkStage: View {
 
 private struct AudioSpectrum: View {
     let isPlaying: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
-        TimelineView(.animation(minimumInterval: 0.08, paused: !isPlaying)) { timeline in
+        TimelineView(.animation(minimumInterval: 0.08, paused: !isPlaying || reduceMotion)) { timeline in
             Canvas { context, size in
                 let time = timeline.date.timeIntervalSinceReferenceDate
                 let count = 48
@@ -1234,7 +1238,7 @@ private struct LyricsPanel: View {
             Text("Lyrics").font(.title2.bold())
             Text(player.current?.title ?? "Nothing playing").font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
             if loading { ProgressView("Finding synchronized lyrics…").padding(.top, 28) }
-            else if lines.isEmpty { ContentUnavailableView("Lyrics unavailable", systemImage: "quote.bubble", description: Text(message.isEmpty ? "Your server can provide synced LRC lyrics at /api/lyrics?song_id=…" : message)) }
+            else if lines.isEmpty { ContentUnavailableView("Lyrics unavailable", systemImage: "quote.bubble", description: Text(message.isEmpty ? "Your server provides synced LRC lyrics at /api/songs/<id>/lyrics when a match is found." : message)) }
             else {
                 ScrollViewReader { proxy in
                     ScrollView {
