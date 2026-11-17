@@ -71,13 +71,12 @@ final class MusicLibrary: ObservableObject {
         defaults.set(favoriteIDs.sorted(), forKey: "favoriteSongIDs")
     }
 
-    /// Optional server contract: GET /api/lyrics?song_id=123 returns LRC text,
-    /// either as text/plain or in a JSON `lyrics`, `lrc`, `text`, or `data` field.
+    /// Backend contract: GET /api/songs/:id/lyrics (see backend/madineni-lyrics.cjs).
+    /// The response carries LRC text in data.syncedLyrics; see `LyricsPayload`.
     func loadLyrics(for song: Song) async throws -> [LyricLine] {
         guard let server else { throw LyricsError.unavailable }
-        var components = URLComponents(url: server.appendingPathComponent("api/lyrics"), resolvingAgainstBaseURL: false)
-        components?.queryItems = [URLQueryItem(name: "song_id", value: String(song.id))]
-        guard let url = components?.url else { throw LyricsError.invalid }
+        var url = server
+        for component in ["api", "songs", String(song.id), "lyrics"] { url.appendPathComponent(component) }
         var request = URLRequest(url: url)
         request.timeoutInterval = 12
         request.setValue("application/json, text/plain", forHTTPHeaderField: "Accept")
@@ -85,26 +84,11 @@ final class MusicLibrary: ObservableObject {
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             throw LyricsError.unavailable
         }
-        let raw: String
-        if let object = try? JSONSerialization.jsonObject(with: data) {
-            guard let text = Self.lyricsText(in: object) else { throw LyricsError.invalid }
-            raw = text
-        } else if let text = String(data: data, encoding: .utf8) {
-            raw = text
-        } else { throw LyricsError.invalid }
+        // A null syncedLyrics (plain-only or instrumental track) means nothing to sync.
+        guard let raw = LyricsPayload.lrc(from: data) else { throw LyricsError.unavailable }
         let lines = LyricLine.parseLRC(raw)
         guard !lines.isEmpty else { throw LyricsError.unavailable }
         return lines
-    }
-
-    private static func lyricsText(in value: Any) -> String? {
-        if let text = value as? String { return text }
-        if let object = value as? [String: Any] {
-            for key in ["lyrics", "lrc", "text", "data"] {
-                if let nested = object[key], let text = lyricsText(in: nested) { return text }
-            }
-        }
-        return nil
     }
 
     private func publish(_ values: [Song], server base: URL) {
@@ -186,7 +170,8 @@ final class MusicLibrary: ObservableObject {
             let page = try JSONDecoder().decode(SongPage.self, from: data)
             playlistError = nil
             // Use the full catalog row when available, preserving album IDs and artwork metadata.
-            return page.songs.map { row in songs.first(where: { $0.id == row.id }) ?? row }
+            let catalog = Dictionary(songs.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            return page.songs.map { catalog[$0.id] ?? $0 }
         } catch { playlistError = error.localizedDescription; return nil }
     }
 

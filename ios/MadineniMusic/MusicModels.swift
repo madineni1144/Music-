@@ -88,6 +88,27 @@ enum LyricsError: LocalizedError {
     }
 }
 
+/// Extracts LRC text from the server's lyrics response.
+/// Backend contract (backend/madineni-lyrics.cjs): GET /api/songs/:id/lyrics returns
+/// {"success":true,"data":{"syncedLyrics":"[00:12.00]…","plainLyrics":…,"lines":[…]}}.
+/// Plain text and the older {lyrics|lrc|text|data} shapes are still accepted.
+enum LyricsPayload {
+    static func lrc(from data: Data) -> String? {
+        if let object = try? JSONSerialization.jsonObject(with: data) { return text(in: object) }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private static func text(in value: Any) -> String? {
+        if let string = value as? String { return string }
+        if let object = value as? [String: Any] {
+            for key in ["syncedLyrics", "lyrics", "lrc", "text", "data"] {
+                if let nested = object[key], let found = text(in: nested) { return found }
+            }
+        }
+        return nil
+    }
+}
+
 struct AlbumGroup: Identifiable {
     let id: String
     let title: String
