@@ -35,3 +35,8 @@ jobs:
         run: >
           xcodebuild -project ios/MadineniMusic.xcodeproj -target MadineniMusic
           -sdk iphonesimulator -configuration Debug CODE_SIGNING_ALLOWED=NO build
+      - name: Verify privacy manifest is bundled
+        run: |
+          APP=$(find ios/build -name MadineniMusic.app -type d | head -1)
+          echo "app: $APP"
+          test -f "$APP/PrivacyInfo.xcprivacy"

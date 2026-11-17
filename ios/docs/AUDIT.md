@@ -44,7 +44,7 @@ Each finding is labeled **Confirmed** (proven by reading code or contracts), **S
 | 12 | Medium | Suspected | `MusicPlayer:141-147` | End-of-track guard fails playback if the catalog `duration_seconds` is more than 5 s longer than the played time. If durations in the database are inaccurate, the song ends with an error and the queue does not advance. Verify stored durations; consider comparing against `AVPlayerItem.duration`. |
 | 13 | Medium | Suspected | `MusicPlayer` | No handling of `AVAudioSession.mediaServicesWereResetNotification` and no `scenePhase` handling. After a media-services reset, playback needs the session and player rebuilt. |
 | 14 | Medium | Not implemented | — | No automated coverage for `MusicPlayer`, `MusicLibrary` networking and `ArtworkLoader`: they use `AVPlayer`, `URLSession.shared` defaults and UIKit directly. Plan: add an Xcode test target (can be done in Xcode in minutes), put `AVPlayer` behind a small protocol, and use a `URLProtocol` stub with the existing `session:` injection on `MusicLibrary`. |
-| 15 | Low | Confirmed | `MusicModels:55`; `ContentView:1242-1248` | `LyricLine.id = "\(time)-\(text)"` can collide, giving duplicate `ForEach` IDs. Use the enumerated offset. |
+| 15 | Low | Confirmed, **fixed** | `MusicModels:55`; `ContentView:1242-1248` | `LyricLine.id = "\(time)-\(text)"` could collide, giving duplicate `ForEach` IDs. The lyrics list now identifies rows by position. |
 | 16 | Low | Confirmed | `ContentView:820` | Queue rows use `id: \.offset`; identity follows position, so reorder/remove animations can glitch. Reordering is context-menu only (no drag handles); the queue help text says "Hold". |
 | 17 | Low | Confirmed | `MusicLibrary:38,69-71` | Favorites are stored by song ID only, so switching servers can mark unrelated songs. Favorites are device-local; the backend has no favorites route. |
 | 18 | Low | Confirmed | `MusicLibrary.publish` (111-115) | Album artwork map is fetched only when the server changes, so a pull-to-refresh on the same server does not pick up new covers until relaunch. |
@@ -69,7 +69,7 @@ Pagination and progressive loading in `MusicLibrary.loadCatalog` (matches the ba
 | Local network | `NSLocalNetworkUsageDescription` present |
 | App icon | 1024×1024 `AppIcon.png` present |
 | Signing | Automatic, no team set (select your team in Xcode) |
-| **Blocker for App Store (not needed for Xcode sideloading)** | No `PrivacyInfo.xcprivacy`. The app uses `UserDefaults`/`@AppStorage`, which requires a declared reason |
+| Privacy manifest | Added `PrivacyInfo.xcprivacy` (no tracking, no collected data, `UserDefaults` reason CA92.1) and wired it into the project; CI verifies it is bundled in the built app. Re-check the declared reasons if you add APIs such as file timestamps or disk space |
 | **Blocker for the pair** | Finding 9 (auth) |
 | Not done | `SWIFT_STRICT_CONCURRENCY=targeted` build to see concurrency warnings; Instruments profiling; device test of lock screen, Bluetooth, interruptions and route changes |
 
@@ -113,4 +113,3 @@ The same Linux test job runs automatically on pull requests into `feature/ios-de
 2. Decide the auth approach (finding 9) together with the backend change.
 3. Profile playback on a large library, then do the `PlaybackClock` refactor (finding 10) if the profile confirms it.
 4. Add an Xcode test target and the player/library mocks (finding 14).
-5. Add `PrivacyInfo.xcprivacy` if you plan to submit to the App Store.

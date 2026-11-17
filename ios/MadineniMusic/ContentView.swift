@@ -1243,19 +1243,19 @@ private struct LyricsPanel: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 22) {
-                            ForEach(Array(lines.enumerated()), id: \.element.id) { index, line in
+                            ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
                                 Button { player.seek(line.time) } label: {
                                     Text(line.text).font(index == activeIndex ? .title2.bold() : .title3.weight(.medium))
                                         .foregroundStyle(index == activeIndex ? Color.white : Color.white.opacity(0.43))
                                         .shadow(color: index == activeIndex ? MusicStyle.accent.opacity(0.8) : .clear, radius: 14)
                                         .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-                                }.buttonStyle(.plain).id(line.id).accessibilityLabel("Seek to \(Int(line.time)) seconds: \(line.text)")
+                                }.buttonStyle(.plain).id(index).accessibilityLabel("Seek to \(Int(line.time)) seconds: \(line.text)")
                             }
                         }.padding(.vertical, 36)
                     }
                     .onChange(of: activeIndex) { _, index in
                         guard lines.indices.contains(index) else { return }
-                        withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo(lines[index].id, anchor: .center) }
+                        withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo(index, anchor: .center) }
                     }
                 }
             }
