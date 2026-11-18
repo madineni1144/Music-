@@ -10,7 +10,7 @@ The code was written on a Linux workspace with no Swift toolchain, Xcode or devi
 | Check | Result |
 |---|---|
 | App compiles | **Passed.** Unsigned Debug build for iOS Simulator on `macos-15` ([run 43990824554](https://github.com/madineni1144/Music-/actions/runs/43990824554)). Strict-concurrency warnings were not reviewed. |
-| `MusicLibrary` tests (10, iOS Simulator via `xcodebuild test`) | **Passed** ([run 44387813958](https://github.com/madineni1144/Music-/actions/runs/44387813958)). |
+| `MusicLibrary` tests (16, iOS Simulator via `xcodebuild test`) | **Passed** ([run 44409403628](https://github.com/madineni1144/Music-/actions/runs/44409403628)). |
 | `swift test` (46 tests) | **Passed on Linux** (Swift 5.10, [run 43990622421](https://github.com/madineni1144/Music-/actions/runs/43990622421)) **and on macOS** (same run as the build). 0 failures. |
 | On-device behavior (lock screen, Bluetooth, interruptions, performance) | **Not verified.** Needs a physical iPhone. |
 | `Info.plist` parses as valid XML plist | Passed (Python `plistlib`) |
@@ -44,7 +44,7 @@ Each finding is labeled **Confirmed** (proven by reading code or contracts), **S
 | 11 | Medium | Confirmed | `server.js:809` vs `MusicLibrary` PlaylistError | The backend still orders playlist songs by `ps.id`; the app has a message telling the user to edit `server.js` to `ps.song_id` if the column is missing. You were not sure which schema production has. Read-only check, run on the production database: `SELECT column_name FROM information_schema.columns WHERE table_name = 'playlist_songs' ORDER BY ordinal_position;` If `id` is listed, the query is fine and the app message can be made generic; if only `song_id` is listed, the backend query must change (needs your approval). I did not touch the backend or database. |
 | 12 | Medium | Suspected | `MusicPlayer:141-147` | End-of-track guard fails playback if the catalog `duration_seconds` is more than 5 s longer than the played time. If durations in the database are inaccurate, the song ends with an error and the queue does not advance. Verify stored durations; consider comparing against `AVPlayerItem.duration`. |
 | 13 | Medium | Suspected | `MusicPlayer` | No handling of `AVAudioSession.mediaServicesWereResetNotification` and no `scenePhase` handling. After a media-services reset, playback needs the session and player rebuilt. |
-| 14 | Medium | Partly fixed | — | `MusicLibrary` networking now has 10 simulator tests (`ios/MadineniMusicTests`, stubbed `URLProtocol`, no real server): pagination, error handling, the lyrics route, playlist write routes and bodies, and favorites. Still uncovered: `MusicPlayer` (uses `AVPlayer` directly; needs a small protocol seam) and `ArtworkLoader`. |
+| 14 | Medium | Partly fixed | — | `MusicLibrary` networking now has 16 simulator tests (`ios/MadineniMusicTests`, stubbed `URLProtocol`, no real server): pagination, error handling, the lyrics route, playlist write routes and bodies, and favorites. Still uncovered: `MusicPlayer` (uses `AVPlayer` directly; needs a small protocol seam) and `ArtworkLoader`. |
 | 15 | Low | Confirmed, **fixed** | `MusicModels:55`; `ContentView:1242-1248` | `LyricLine.id = "\(time)-\(text)"` could collide, giving duplicate `ForEach` IDs. The lyrics list now identifies rows by position. |
 | 16 | Low | Confirmed | `ContentView:820` | Queue rows use `id: \.offset`; identity follows position, so reorder/remove animations can glitch. Reordering is context-menu only (no drag handles); the queue help text says "Hold". |
 | 17 | Low | Confirmed | `MusicLibrary:38,69-71` | Favorites are stored by song ID only, so switching servers can mark unrelated songs. Favorites are device-local; the backend has no favorites route. |
@@ -74,7 +74,7 @@ Pagination and progressive loading in `MusicLibrary.loadCatalog` (matches the ba
 | **Blocker for the pair** | Finding 9 (auth) |
 | Not done | `SWIFT_STRICT_CONCURRENCY=targeted` build to see concurrency warnings; Instruments profiling; device test of lock screen, Bluetooth, interruptions and route changes |
 
-## Tests added (56, all passing in CI)
+## Tests added (62, all passing in CI)
 
 `ios/CoreLogic` is a SwiftPM package that compiles `PlaybackQueue.swift`, `MusicModels.swift` and `ReleaseModels.swift` from the app target through symlinks (one copy of the code, no `.pbxproj` edits). 46 tests cover:
 
