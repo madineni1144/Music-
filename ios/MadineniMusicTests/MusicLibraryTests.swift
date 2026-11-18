@@ -10,7 +10,7 @@ final class StubURLProtocol: URLProtocol {
         let url: URL
         let body: Data?
     }
-    typealias Handler = (Recorded) -> (status: Int, body: String)
+    typealias Handler = (Recorded) -> (Int, String)
 
     private static let lock = NSLock()
     private static var storedHandler: Handler?
@@ -46,10 +46,10 @@ final class StubURLProtocol: URLProtocol {
         let recorded = Recorded(method: request.httpMethod ?? "GET", url: url, body: Self.readBody(request))
         Self.record(recorded)
         let result = Self.handler?(recorded) ?? (404, "{}")
-        let response = HTTPURLResponse(url: url, statusCode: result.status, httpVersion: "HTTP/1.1",
+        let response = HTTPURLResponse(url: url, statusCode: result.0, httpVersion: "HTTP/1.1",
                                        headerFields: ["Content-Type": "application/json"])!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Data(result.body.utf8))
+        client?.urlProtocol(self, didLoad: Data(result.1.utf8))
         client?.urlProtocolDidFinishLoading(self)
     }
 
@@ -240,7 +240,8 @@ final class MusicLibraryTests: XCTestCase {
                 : nil
         })
         let library = await connectedLibrary()
-        let songs = try XCTUnwrap(await library.loadPlaylistSongs(try playlist()))
+        let loaded = await library.loadPlaylistSongs(try playlist())
+        let songs = try XCTUnwrap(loaded)
         XCTAssertEqual(songs.map(\.id), [2])
         XCTAssertEqual(songs.first?.title, "Song 2", "catalog metadata should replace the sparse playlist row")
     }
