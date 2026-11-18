@@ -38,6 +38,7 @@ final class MusicPlayer: ObservableObject {
     private var seekID = UUID()
     private var hasEnded = false
     private var wantsPlayback = false
+    private var lastNowPlayingPublish = Date.distantPast
     var current: Song? { queueState.current }
     var canGoNext: Bool { queueState.canAdvance(repeatMode: repeatMode) }
     var canShuffle: Bool { queueState.upcomingCount > 1 }
@@ -57,7 +58,9 @@ final class MusicPlayer: ObservableObject {
                     self.duration = d
                     self.updateRemoteAvailability()
                 }
-                self.publishNowPlaying()
+                // The system extrapolates elapsed time from the playback rate, so a slow
+                // refresh is enough here; state changes and seeks publish immediately.
+                if Date().timeIntervalSince(self.lastNowPlayingPublish) >= 5 { self.publishNowPlaying() }
             }
         }
         playbackObservation = audio.observe(\.timeControlStatus, options: [.initial, .new]) { [weak self] player, _ in
@@ -73,7 +76,9 @@ final class MusicPlayer: ObservableObject {
             Task { @MainActor in
                 guard let self else { return }
                 if type == AVAudioSession.InterruptionType.began.rawValue {
-                    self.resumeAfterInterruption = self.playing
+                    // Use the user's intent, not `playing`: the system pauses the player before this
+                    // runs, so `playing` may already be false and the resume would be skipped.
+                    if self.wantsPlayback { self.resumeAfterInterruption = true }
                     self.pause()
                 } else if type == AVAudioSession.InterruptionType.ended.rawValue {
                     if self.resumeAfterInterruption && AVAudioSession.InterruptionOptions(rawValue: options).contains(.shouldResume) { self.resume() }
@@ -320,6 +325,7 @@ final class MusicPlayer: ObservableObject {
     }
     private func publishNowPlaying() {
         guard let song = current else { return }
+        lastNowPlayingPublish = Date()
         var info: [String: Any] = [
             MPMediaItemPropertyTitle: song.externalPlaybackTitle,
             MPMediaItemPropertyArtist: song.artistName,

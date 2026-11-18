@@ -56,6 +56,9 @@ struct ContentView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
         }
+        // Destination-style NavigationLinks are not tracked by `navigationPath`, so clearing it
+        // cannot pop them. A new stack identity per tab guarantees a tab switch shows that tab's root.
+        .id(tab)
         .onChange(of: tab) { _, _ in navigationPath = NavigationPath() }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 0) {
@@ -1048,6 +1051,11 @@ struct ServerSettings: View {
                         .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
                     Text("Your music server is filled in automatically. Change it only if you move your server.").font(.caption)
                 }
+                Section("Playlist changes") {
+                    SecureField("Access token (optional)", text: $library.writeToken)
+                        .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    Text("Only needed if your server protects playlist changes. It stays in memory for this session and is never saved.").font(.caption)
+                }
                 Section {
                     Button {
                         Task {
@@ -1199,8 +1207,9 @@ private struct ArtworkStage: View {
 
 private struct AudioSpectrum: View {
     let isPlaying: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
-        TimelineView(.animation(minimumInterval: 0.08, paused: !isPlaying)) { timeline in
+        TimelineView(.animation(minimumInterval: 0.08, paused: !isPlaying || reduceMotion)) { timeline in
             Canvas { context, size in
                 let time = timeline.date.timeIntervalSinceReferenceDate
                 let count = 48
@@ -1234,24 +1243,24 @@ private struct LyricsPanel: View {
             Text("Lyrics").font(.title2.bold())
             Text(player.current?.title ?? "Nothing playing").font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
             if loading { ProgressView("Finding synchronized lyrics…").padding(.top, 28) }
-            else if lines.isEmpty { ContentUnavailableView("Lyrics unavailable", systemImage: "quote.bubble", description: Text(message.isEmpty ? "Your server can provide synced LRC lyrics at /api/lyrics?song_id=…" : message)) }
+            else if lines.isEmpty { ContentUnavailableView("Lyrics unavailable", systemImage: "quote.bubble", description: Text(message.isEmpty ? "Your server provides synced LRC lyrics at /api/songs/<id>/lyrics when a match is found." : message)) }
             else {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 22) {
-                            ForEach(Array(lines.enumerated()), id: \.element.id) { index, line in
+                            ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
                                 Button { player.seek(line.time) } label: {
                                     Text(line.text).font(index == activeIndex ? .title2.bold() : .title3.weight(.medium))
                                         .foregroundStyle(index == activeIndex ? Color.white : Color.white.opacity(0.43))
                                         .shadow(color: index == activeIndex ? MusicStyle.accent.opacity(0.8) : .clear, radius: 14)
                                         .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-                                }.buttonStyle(.plain).id(line.id).accessibilityLabel("Seek to \(Int(line.time)) seconds: \(line.text)")
+                                }.buttonStyle(.plain).id(index).accessibilityLabel("Seek to \(Int(line.time)) seconds: \(line.text)")
                             }
                         }.padding(.vertical, 36)
                     }
                     .onChange(of: activeIndex) { _, index in
                         guard lines.indices.contains(index) else { return }
-                        withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo(lines[index].id, anchor: .center) }
+                        withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo(index, anchor: .center) }
                     }
                 }
             }
