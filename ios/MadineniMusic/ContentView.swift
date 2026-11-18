@@ -1051,6 +1051,11 @@ struct ServerSettings: View {
                         .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
                     Text("Your music server is filled in automatically. Change it only if you move your server.").font(.caption)
                 }
+                Section("Playlist changes") {
+                    SecureField("Access token (optional)", text: $library.writeToken)
+                        .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    Text("Only needed if your server protects playlist changes. It stays in memory for this session and is never saved.").font(.caption)
+                }
                 Section {
                     Button {
                         Task {

@@ -9,6 +9,7 @@ final class StubURLProtocol: URLProtocol {
         let method: String
         let url: URL
         let body: Data?
+        let headers: [String: String]
     }
     typealias Handler = (Recorded) -> (Int, String)
 
@@ -43,7 +44,7 @@ final class StubURLProtocol: URLProtocol {
 
     override func startLoading() {
         guard let url = request.url else { return }
-        let recorded = Recorded(method: request.httpMethod ?? "GET", url: url, body: Self.readBody(request))
+        let recorded = Recorded(method: request.httpMethod ?? "GET", url: url, body: Self.readBody(request), headers: request.allHTTPHeaderFields ?? [:])
         Self.record(recorded)
         let result = Self.handler?(recorded) ?? (404, "{}")
         let response = HTTPURLResponse(url: url, statusCode: result.0, httpVersion: "HTTP/1.1",
@@ -256,6 +257,69 @@ final class MusicLibraryTests: XCTestCase {
         let songs = await library.loadPlaylistSongs(try playlist())
         XCTAssertNil(songs)
         XCTAssertEqual(library.playlistError?.contains("ps.song_id"), true)
+    }
+
+    // Access token for protected playlist writes
+
+    func testTokenIsSentAsBearerOnWritesOnlyAndNeverOnReads() async {
+        install()
+        let library = await connectedLibrary()
+        library.writeToken = "tok123"
+        StubURLProtocol.clearLog()
+        let created = await library.createPlaylist(name: "A")
+        XCTAssertTrue(created)
+        let log = StubURLProtocol.log
+        XCTAssertEqual(log.filter { $0.method == "POST" }.first?.headers["Authorization"], "Bearer tok123")
+        XCTAssertTrue(log.filter { $0.method == "GET" }.allSatisfy { $0.headers["Authorization"] == nil })
+    }
+
+    func testNoTokenMeansNoAuthorizationHeader() async {
+        install()
+        let library = await connectedLibrary()
+        StubURLProtocol.clearLog()
+        let created = await library.createPlaylist(name: "A")
+        XCTAssertTrue(created)
+        XCTAssertTrue(StubURLProtocol.log.allSatisfy { $0.headers["Authorization"] == nil })
+    }
+
+    func testTokenIsNeverSentOverPlainHTTP() async {
+        install()
+        let library = makeLibrary()
+        _ = await library.connect(to: "http://192.168.1.5:8080")
+        library.writeToken = "tok123"
+        StubURLProtocol.clearLog()
+        let created = await library.createPlaylist(name: "A")
+        XCTAssertFalse(created)
+        XCTAssertEqual(library.playlistError?.contains("HTTPS"), true)
+        XCTAssertTrue(StubURLProtocol.log.isEmpty, "no request, and so no token, may leave the device")
+    }
+
+    func testUnauthorizedWriteExplainsHowToAddTheToken() async {
+        install(extra: { $0.method == "POST" ? (401, #"{"error":"Unauthorized"}"#) : nil })
+        let library = await connectedLibrary()
+        let created = await library.createPlaylist(name: "A")
+        XCTAssertFalse(created)
+        XCTAssertEqual(library.playlistError?.contains("access token"), true)
+    }
+
+    func testSwitchingServersClearsTheToken() async {
+        install()
+        let library = await connectedLibrary()
+        library.writeToken = "tok123"
+        _ = await library.connect(to: "https://other.test")
+        XCTAssertEqual(library.server?.host, "other.test")
+        XCTAssertEqual(library.writeToken, "")
+    }
+
+    func testTokenIsNotPersistedToDefaults() async {
+        install()
+        let defaults = makeDefaults()
+        let library = makeLibrary(defaults: defaults)
+        _ = await library.connect(to: "https://music.test")
+        library.writeToken = "tok123"
+        _ = await library.createPlaylist(name: "A")
+        let stored = defaults.dictionaryRepresentation().values.map { "\($0)" }.joined()
+        XCTAssertFalse(stored.contains("tok123"))
     }
 
     // Favorites

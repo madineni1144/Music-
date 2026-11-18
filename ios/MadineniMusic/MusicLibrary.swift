@@ -13,6 +13,9 @@ final class MusicLibrary: ObservableObject {
     @Published var error: String?
     @Published private(set) var playlists: [MusicPlaylist] = []
     @Published var playlistError: String?
+    /// Optional bearer token for playlist changes. Typed by the user, kept in memory only (never persisted or logged),
+    /// sent only on POST/DELETE over HTTPS, and cleared when the app switches to a different server.
+    @Published var writeToken = ""
 
     @Published private(set) var albums: [AlbumGroup] = []
     @Published private(set) var favoriteIDs: Set<Int>
@@ -93,6 +96,7 @@ final class MusicLibrary: ObservableObject {
 
     private func publish(_ values: [Song], server base: URL) {
         if server != base {
+            if server != nil { writeToken = "" }
             albumArtwork = [:]
             artworkTask?.cancel()
             if fetchArtwork { artworkTask = Task { await self.fetchAlbumArtwork(base) } }
@@ -209,9 +213,18 @@ final class MusicLibrary: ObservableObject {
         request.httpBody = body
         request.timeoutInterval = 15
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if method != "GET", !writeToken.isEmpty {
+            guard server.scheme == "https" else {
+                throw PlaylistError.response("An access token is only sent over HTTPS. Use an https:// server address or clear the token.")
+            }
+            request.setValue("Bearer \(writeToken)", forHTTPHeaderField: "Authorization")
+        }
         if body != nil { request.setValue("application/json", forHTTPHeaderField: "Content-Type") }
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            if let http = response as? HTTPURLResponse, http.statusCode == 401 || http.statusCode == 403 {
+                throw PlaylistError.response("The server needs an access token for playlist changes. Add it in Server settings.")
+            }
             let message = (try? JSONDecoder().decode(APIErrorResponse.self, from: data))?.details
                 ?? (try? JSONDecoder().decode(APIErrorResponse.self, from: data))?.error
             if let message, message.contains("column ps.id does not exist") {
