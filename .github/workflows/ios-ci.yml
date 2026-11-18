@@ -35,6 +35,12 @@ jobs:
         run: >
           xcodebuild -project ios/MadineniMusic.xcodeproj -target MadineniMusic
           -sdk iphonesimulator -configuration Debug CODE_SIGNING_ALLOWED=NO build
+      - name: Run MusicLibrary tests on iOS Simulator
+        run: |
+          xcrun simctl list devices available | grep -E "iPhone" | head -5
+          xcodebuild test -project ios/MadineniMusic.xcodeproj -scheme MadineniMusic \
+            -destination "platform=iOS Simulator,name=$(xcrun simctl list devices available | grep -oE 'iPhone [0-9]+ \(' | head -1 | sed 's/ ($//')" \
+            CODE_SIGNING_ALLOWED=NO
       - name: Verify privacy manifest is bundled
         run: |
           APP=$(find ios/build -name MadineniMusic.app -type d | head -1)
