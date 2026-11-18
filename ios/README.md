@@ -20,4 +20,11 @@ cd ios/CoreLogic
 swift test
 ```
 
-Player, library networking and artwork code depend on AVFoundation, UIKit and Combine and are not covered yet. See `docs/AUDIT.md` for the plan to add an Xcode test target with injected mocks.
+`MadineniMusicTests` (an Xcode unit-test target) tests `MusicLibrary` against a stubbed network, with no real server and no app launch. Run it with ⌘U in Xcode, or:
+
+```sh
+xcodebuild test -project MadineniMusic.xcodeproj -scheme MadineniMusic \
+  -destination 'platform=iOS Simulator,name=iPhone 16' CODE_SIGNING_ALLOWED=NO
+```
+
+`MusicPlayer` and `ArtworkLoader` are not covered yet; see `docs/AUDIT.md`.
